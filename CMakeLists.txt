@@ -70,7 +70,6 @@ set(dmsc_SRCS
   )
 
 QT4_WRAP_CPP(dmsc_MOC_SRCS
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_viewer.h
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_viewer_mainwindow.h
   )
 
