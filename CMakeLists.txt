@@ -40,64 +40,68 @@ endif(NOT OPENCL_FOUND)
 add_subdirectory(utls)
 
 set(dmsc_SRCS
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/main.cpp
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/discreteMorseDS.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/discreteMorseAlgorithm.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/discreteMorseDS.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/discreteMorseAlgorithm.h
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/rectangle_complex.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/rectangle_complex.h
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/prefix_scan.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/prefix_scan.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/prefix_scan.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/prefix_scan.cpp
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_dataset.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/grid_dataset.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_dataset.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_dataset.cpp
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_mscomplex.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/grid_mscomplex.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_mscomplex.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_mscomplex.cpp
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_datamanager.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/grid_datamanager.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_datamanager.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_datamanager.cpp
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_viewer.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/grid_viewer.cpp
-
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_viewer_mainwindow.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/grid_viewer_mainwindow.cpp
-
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/bitonic_sort.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/src/bitonic_sort.cpp
-  )
-
-QT4_WRAP_CPP(dmsc_MOC_SRCS
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include/grid_viewer_mainwindow.h
-  )
-
-set(dmsc_UIS
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/forms/grid_viewer_mainwindow.ui
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/bitonic_sort.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/bitonic_sort.cpp
   )
 
 QT4_ADD_RESOURCES(dmsc_RC_SRCS
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/resources/mscomplex.qrc
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/ocl/mscomplex.qrc
   )
 
-QT4_WRAP_UI(dmsc_UI_SRCS ${dmsc_UIS})
+set(viewer_SRCS
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/grid_viewer.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/grid_viewer.cpp
+
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/grid_viewer_mainwindow.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/grid_viewer_mainwindow.cpp
+  )
+
+QT4_WRAP_CPP(viewer_MOC_SRCS
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/grid_viewer_mainwindow.h
+  )
+
+set(viewer_UIS
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/grid_viewer_mainwindow.ui
+  )
+
+QT4_WRAP_UI(viewer_UI_SRCS ${viewer_UIS})
 
 include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/
+  ${utls_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_BINARY_DIR}
   ${OPENCL_INCLUDE_DIRS}
   ${QT_ADDITIONAL_INCLUDE_PATHS}
   ${QGLVIEWER_INCLUDE_DIR}
   ${Boost_INCLUDE_DIRS}
-  ${utls_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/include
-  ${CMAKE_CURRENT_BINARY_DIR}
   )
 
 add_executable(${PROJECT_NAME}
   ${dmsc_SRCS}
-  ${dmsc_MOC_SRCS}
-  ${dmsc_UI_SRCS}
   ${dmsc_RC_SRCS}
+  ${viewer_SRCS}
+  ${viewer_MOC_SRCS}
+  ${viewer_UI_SRCS}
   )
 
 target_link_libraries(
