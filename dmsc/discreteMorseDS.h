@@ -31,61 +31,14 @@
 
 enum eGradDirection {GRADIENT_DIR_DOWNWARD,GRADIENT_DIR_UPWARD,GRADIENT_DIR_COUNT};
 
-template <typename id_type>
-    class IDiscreteDataset
-{
-public:
-  virtual id_type getCellPairId ( id_type cellid ) const =0;
-
-  virtual bool    ptLt ( id_type cell1,id_type cell2 ) const =0;
-
-  virtual bool    compareCells( id_type ,id_type ) const = 0;
-
-  virtual uint    getCellPoints ( id_type cellId,id_type  *points ) const =0;
-
-  virtual uint    getCellFacets ( id_type cellId,id_type *facets ) const =0;
-
-  virtual uint    getCellCofacets ( id_type cellId,id_type *cofacets ) const =0;
-
-  virtual bool    isPairOrientationCorrect ( id_type cellId, id_type pairId ) const =0;
-
-  virtual bool    isCellMarked ( id_type cellId ) const =0;
-
-  virtual bool    isCellCritical ( id_type cellId ) const =0;
-
-  virtual void    pairCells ( id_type cellId1,id_type cellId2 ) =0;
-
-  virtual void    markCellCritical ( id_type cellId ) =0;
-
-  virtual uint    getCellDim ( id_type cellId ) const = 0;
-
-  virtual uint    getMaxCellDim() const = 0;
-
-  virtual bool    isTrueBoundryCell ( id_type cellId ) const =0;
-
-  virtual bool    isFakeBoundryCell ( id_type cellId ) const =0;
-
-  virtual bool    isCellExterior ( id_type cellId ) const =0;
-
-  // some functions to support debugging
-
-  virtual std::string  getCellFunctionDescription ( id_type pt ) const = 0;
-
-  virtual std::string getCellDescription ( id_type cellid ) const =0;
-
-};
-
 template <typename id_t>
     class MSComplex
 {
-
 public:
-
   struct critical_point;
 
   typedef std::map<id_t,uint>           id_cp_map_t;
   typedef std::vector<critical_point *> cp_ptr_list_t;
-
 
   struct critical_point
   {
