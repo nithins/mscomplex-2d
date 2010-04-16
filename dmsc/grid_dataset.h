@@ -30,8 +30,6 @@
 
 #include <CL/cl.h>
 
-
-
 class GridDataset:public grid_types_t
 {
 

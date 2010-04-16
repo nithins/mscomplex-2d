@@ -24,10 +24,6 @@
 #include <fstream>
 #include <vector>
 
-#include <tree.h>
-
-#include <rectangle_complex.h>
-#include <discreteMorseDS.h>
 #include <grid_dataset.h>
 
 struct GridDataPiece

@@ -24,10 +24,8 @@
 #include <vector>
 #include <map>
 #include <set>
-#include <iostream>
 
-#include <glutils.h>
-#include <quad_edge.h>
+#include <cpputils.h>
 
 enum eGradDirection {GRADIENT_DIR_DOWNWARD,GRADIENT_DIR_UPWARD,GRADIENT_DIR_COUNT};
 
