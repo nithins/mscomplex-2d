@@ -9,6 +9,7 @@
 #include <boost/program_options.hpp>
 
 #include <stdexcept>
+#include <iostream>
 
 using namespace std;
 
@@ -18,7 +19,7 @@ int main(int ac , char **av)
 {
   string filename;
 
-  two_tuple_t<int> dim;
+  n_vector_t<int,2> dim;
 
   bool   single_thread = false;
 
@@ -38,7 +39,7 @@ int main(int ac , char **av)
   desc.add_options()
       ("help,h", "produce help message")
       ("file,f",bpo::value<std::string >(), "grid file name")
-      ("dim,d", bpo::value<two_tuple_t<int> >(), "dim of grid entered as (x,y)")
+      ("dim,d", bpo::value<n_vector_t<int,2> >(), "dim of grid entered as (x,y)")
       ("single-thread-mode,s", "single threaded mode")
       ("cl","use OpenCL ")
       ("out-of-core-mode,o", "Compute out of Core")
@@ -60,7 +61,7 @@ int main(int ac , char **av)
   }
 
   if (vm.count("dim"))
-    dim = vm["dim"].as<two_tuple_t<int> >();
+    dim = vm["dim"].as<n_vector_t<int,2> >();
   else
     throw std::invalid_argument("no dim specified");
 

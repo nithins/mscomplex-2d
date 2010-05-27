@@ -28,6 +28,7 @@
 #include <boost/archive/binary_oarchive.hpp>
 
 #include <timer.h>
+#include <logutil.h>
 
 #include <grid_datamanager.h>
 
@@ -67,23 +68,23 @@ namespace grid
 
     rect_size_t  s = r.size();
 
-    rect_point_t tr1 = r.top_right();
-    rect_point_t bl1 = r.bottom_left();
+    rect_point_t tr1 = r.upper_corner();
+    rect_point_t bl1 = r.lower_corner();
 
     tr1[dim] -= 2*(s[dim]/4);
     bl1[dim]  = tr1[dim];
 
-    rect_t r1 = rect_t(r.bottom_left(),tr1);
-    rect_t r2 = rect_t(bl1,r.top_right());
+    rect_t r1 = rect_t(r.lower_corner(),tr1);
+    rect_t r2 = rect_t(bl1,r.upper_corner());
 
-    rect_point_t tr2 = e.top_right();
-    rect_point_t bl2 = e.bottom_left();
+    rect_point_t tr2 = e.upper_corner();
+    rect_point_t bl2 = e.lower_corner();
 
     tr2[dim] = tr1[dim] + 2;
     bl2[dim] = bl1[dim] - 2;
 
-    rect_t e1 = rect_t(e.bottom_left(),tr2);
-    rect_t e2 = rect_t(bl2,e.top_right());
+    rect_t e1 = rect_t(e.lower_corner(),tr2);
+    rect_t e2 = rect_t(bl2,e.upper_corner());
 
     createPieces_quadtree(r1,e1,level-1);
     createPieces_quadtree(r2,e2,level-1);
@@ -555,8 +556,8 @@ namespace grid
 
     datapiece_t * dp2 = m_pieces[start_offset+num_pc_per_buf-1];
 
-    rect_point_t bl = dp1->dataset->get_ext_rect().bottom_left()/2;
-    rect_point_t tr = dp2->dataset->get_ext_rect().top_right()/2;
+    rect_point_t bl = dp1->dataset->get_ext_rect().lower_corner()/2;
+    rect_point_t tr = dp2->dataset->get_ext_rect().upper_corner()/2;
 
     size_t num_data_items = (domain_sz[scan_axes]*(tr[split_axes] - bl[split_axes]+1));
 
@@ -571,7 +572,7 @@ namespace grid
     {
       datapiece_t * dp = m_pieces[j];
 
-      rect_point_t dp_bl = dp->dataset->get_ext_rect().bottom_left()/2;
+      rect_point_t dp_bl = dp->dataset->get_ext_rect().lower_corner()/2;
 
       uint data_offset = domain_sz[scan_axes]*(dp_bl[split_axes] - bl[split_axes]);
 

@@ -8,6 +8,7 @@
 #include <QFile>
 #include <prefix_scan.h>
 #include <bitonic_sort.h>
+#include <logutil.h>
 
 #include <grid_mscomplex.h>
 
@@ -234,7 +235,7 @@ void compile_cl_program(std::string prog_filename,std::string header_filename,
       std::string ptx_filename(prog_src_qf.fileName().toStdString());
       ptx_filename += ".ptx";
 
-      _LOG_TO_FILE(std::string(ptx_buffer),ptx_filename.c_str());
+//      _LOG_TO_FILE(std::string(ptx_buffer),ptx_filename.c_str());
       delete []ptx_buffer;
     }
     throw std::runtime_error(buf_str);
@@ -542,15 +543,15 @@ namespace grid
 
     cl_short2 int_bl,int_tr,ext_bl,ext_tr;
 
-    int_bl.x = m_rect.left();
-    int_bl.y = m_rect.bottom();
-    int_tr.x = m_rect.right();
-    int_tr.y = m_rect.top();
+    int_bl.x = m_rect.lower_corner()[0];
+    int_bl.y = m_rect.lower_corner()[1];
+    int_tr.x = m_rect.upper_corner()[0];
+    int_tr.y = m_rect.upper_corner()[1];
 
-    ext_bl.x = m_ext_rect.left();
-    ext_bl.y = m_ext_rect.bottom();
-    ext_tr.x = m_ext_rect.right();
-    ext_tr.y = m_ext_rect.top();
+    ext_bl.x = m_ext_rect.lower_corner()[0];
+    ext_bl.y = m_ext_rect.lower_corner()[1];
+    ext_tr.x = m_ext_rect.upper_corner()[0];
+    ext_tr.y = m_ext_rect.upper_corner()[1];
 
     unsigned int a = 0;
 
@@ -685,10 +686,10 @@ namespace grid
 
     cl_short2 ext_bl,ext_tr;
 
-    ext_bl.x = m_ext_rect.left();
-    ext_bl.y = m_ext_rect.bottom();
-    ext_tr.x = m_ext_rect.right();
-    ext_tr.y = m_ext_rect.top();
+    ext_bl.x = m_ext_rect.lower_corner()[0];
+    ext_bl.y = m_ext_rect.lower_corner()[1];
+    ext_tr.x = m_ext_rect.upper_corner()[0];
+    ext_tr.y = m_ext_rect.upper_corner()[1];
 
     cl_mem critpt_idx_buf =
         clCreateBuffer(s_context,CL_MEM_READ_WRITE,critpt_idx_buf_sz,NULL,&error_code);
@@ -897,10 +898,10 @@ namespace grid
 
     cl_short2 ext_bl,ext_tr;
 
-    ext_bl.x = m_ext_rect.left();
-    ext_bl.y = m_ext_rect.bottom();
-    ext_tr.x = m_ext_rect.right();
-    ext_tr.y = m_ext_rect.top();
+    ext_bl.x = m_ext_rect.lower_corner()[0];
+    ext_bl.y = m_ext_rect.lower_corner()[1];
+    ext_tr.x = m_ext_rect.upper_corner()[0];
+    ext_tr.y = m_ext_rect.upper_corner()[1];
 
     cl_image_format cell_own_imgfmt;
 
@@ -1030,10 +1031,10 @@ namespace grid
 
     cl_short2 ext_bl,ext_tr;
 
-    ext_bl.x = m_ext_rect.left();
-    ext_bl.y = m_ext_rect.bottom();
-    ext_tr.x = m_ext_rect.right();
-    ext_tr.y = m_ext_rect.top();
+    ext_bl.x = m_ext_rect.lower_corner()[0];
+    ext_bl.y = m_ext_rect.lower_corner()[1];
+    ext_tr.x = m_ext_rect.upper_corner()[0];
+    ext_tr.y = m_ext_rect.upper_corner()[1];
 
     uint critpt_ct = m_critical_cells.size();
 
@@ -1246,7 +1247,7 @@ namespace grid
 
       if(!isCellPaired(c))  continue;
 
-      critpt_idx_t cp_idx = i;
+      uint cp_idx = i;
 
       msgraph->m_cps[cp_idx]->is_paired = true;
 
@@ -1422,7 +1423,7 @@ namespace grid
       for (int x = 0 ; x<=s[0];++x)
         (*m_cell_flags)[x][y] = CELLFLAG_UNKNOWN;
 
-    rect_point_t bl = m_ext_rect.bottom_left();
+    rect_point_t bl = m_ext_rect.lower_corner();
 
     (*m_cell_flags).reindex (bl);
     (*m_cell_pairs).reindex (bl);
@@ -1459,7 +1460,7 @@ namespace grid
           new varray_ref_t(pData,boost::extents[1+s[0]/2][1+s[1]/2],
                            boost::fortran_storage_order());
 
-    rect_point_t bl = m_ext_rect.bottom_left();
+    rect_point_t bl = m_ext_rect.lower_corner();
 
     if(pData != NULL)
       (*m_vert_fns_ref).reindex (bl/2);
@@ -1714,8 +1715,8 @@ namespace grid
   {
 
     // determine all the pairings of all cells in m_rect
-    for (cell_coord_t y = m_rect.bottom(); y <= m_rect.top();y += 1)
-      for (cell_coord_t x = m_rect.left(); x <= m_rect.right();x += 1)
+    for (cell_coord_t y = m_rect.lower_corner()[1]; y <= m_rect.upper_corner()[1];y += 1)
+      for (cell_coord_t x = m_rect.lower_corner()[0]; x <= m_rect.upper_corner()[0];x += 1)
       {
       cellid_t c (x,y),p;
 
@@ -1726,8 +1727,8 @@ namespace grid
         pairCells (c,p);
     }
 
-    for (cell_coord_t y = m_rect.bottom(); y <= m_rect.top();y += 1)
-      for (cell_coord_t x = m_rect.left(); x <= m_rect.right();x += 1)
+    for (cell_coord_t y = m_rect.lower_corner()[1]; y <= m_rect.upper_corner()[1];y += 1)
+      for (cell_coord_t x = m_rect.lower_corner()[0]; x <= m_rect.upper_corner()[0];x += 1)
       {
       cellid_t c (x,y);
 
@@ -1736,9 +1737,9 @@ namespace grid
 
     // mark artificial boundry as critical
 
-    for (cell_coord_t x = m_rect.left(); x <= m_rect.right();x += 1)
+    for (cell_coord_t x = m_rect.lower_corner()[0]; x <= m_rect.upper_corner()[0];x += 1)
     {
-      cellid_t bcs[] = {cellid_t (x,m_rect.bottom()),cellid_t (x,m_rect.top()) };
+      cellid_t bcs[] = {cellid_t (x,m_rect.lower_corner()[1]),cellid_t (x,m_rect.upper_corner()[1]) };
 
       for (uint i = 0 ; i <sizeof (bcs) /sizeof (cellid_t);++i)
       {
@@ -1762,9 +1763,9 @@ namespace grid
       }
     }
 
-    for (cell_coord_t y = m_rect.bottom() +1; y < m_rect.top();y += 1)
+    for (cell_coord_t y = m_rect.lower_corner()[1] +1; y < m_rect.upper_corner()[1];y += 1)
     {
-      cellid_t bcs[] = {cellid_t (m_rect.left(),y),cellid_t (m_rect.right(),y) };
+      cellid_t bcs[] = {cellid_t (m_rect.lower_corner()[0],y),cellid_t (m_rect.upper_corner()[0],y) };
 
       for (uint i = 0 ; i <sizeof (bcs) /sizeof (cellid_t);++i)
       {
@@ -1791,8 +1792,8 @@ namespace grid
 
   void  dataset_t::collateCriticalPoints()
   {
-    for (cell_coord_t y = m_ext_rect.bottom(); y <= m_ext_rect.top();y += 1)
-      for (cell_coord_t x = m_ext_rect.left(); x <= m_ext_rect.right();x += 1)
+    for (cell_coord_t y = m_ext_rect.lower_corner()[1]; y <= m_ext_rect.upper_corner()[1];y += 1)
+      for (cell_coord_t x = m_ext_rect.lower_corner()[0]; x <= m_ext_rect.upper_corner()[0];x += 1)
       {
       cellid_t c (x,y);
 
@@ -1841,7 +1842,7 @@ namespace grid
 
       if(!isCellPaired(c))  continue;
 
-      critpt_idx_t cp_idx = i;
+      uint cp_idx = i;
 
       msgraph->m_cps[cp_idx]->is_paired = true;
 
@@ -1897,9 +1898,9 @@ namespace grid
 
   void dataset_t::log_flags()
   {
-    for (cell_coord_t y = m_ext_rect.bottom(); y <= m_ext_rect.top();y += 1)
+    for (cell_coord_t y = m_ext_rect.lower_corner()[1]; y <= m_ext_rect.upper_corner()[1];y += 1)
     {
-      for (cell_coord_t x = m_ext_rect.left(); x <= m_ext_rect.right();x += 1)
+      for (cell_coord_t x = m_ext_rect.lower_corner()[0]; x <= m_ext_rect.upper_corner()[0];x += 1)
       {
         cellid_t c(x,y);
 
@@ -1913,9 +1914,9 @@ namespace grid
 
   void dataset_t::log_pairs()
   {
-    for (cell_coord_t y = m_ext_rect.bottom(); y <= m_ext_rect.top();y += 1)
+    for (cell_coord_t y = m_ext_rect.lower_corner()[1]; y <= m_ext_rect.upper_corner()[1];y += 1)
     {
-      for (cell_coord_t x = m_ext_rect.left(); x <= m_ext_rect.right();x += 1)
+      for (cell_coord_t x = m_ext_rect.lower_corner()[0]; x <= m_ext_rect.upper_corner()[0];x += 1)
       {
         cellid_t c(x,y);
         std::cout<<(*m_cell_pairs)(c)<<" ";

@@ -31,7 +31,7 @@ namespace grid
 
   typedef std::vector<uint>         critpt_idx_list_t;
   typedef std::vector<cell_fn_t>    cp_fn_list_t;
-  typedef two_tuple_t<uint>         uint_pair_t;
+  typedef n_vector_t<uint,2>        uint_pair_t;
   typedef std::vector<uint_pair_t>  uint_pair_list_t;
 
   struct critpt_t

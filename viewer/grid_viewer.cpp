@@ -235,8 +235,8 @@ namespace grid
     std::vector<glutils::line_idx_t>    pair_idxs[2];
 
 
-    for(cell_coord_t y = r.bottom(); y<=r.top(); ++y)
-      for(cell_coord_t x = r.left(); x<=r.right(); ++x)
+    for(cell_coord_t y = r[1][0]; y<=r[1][1]; ++y)
+      for(cell_coord_t x = r[0][0]; x<=r[0][1]; ++x)
       {
       cellid_t c = cellid_t(x,y);
 
@@ -289,26 +289,27 @@ namespace grid
     std::vector<glutils::vertex_t>      point_locs;
     std::vector<glutils::tri_idx_t>     tri_idxs;
 
-
-    for(cell_coord_t y = r.bottom(); y<=r.top(); y+=2)
-      for(cell_coord_t x = r.left(); x<=r.right(); x+=2)
+    for(cell_coord_t y = r[1][0]; y<=r[1][1]; y+= 2)
+    {
+      for(cell_coord_t x = r[0][0]; x<=r[0][1]; x+=2)
       {
-      cellid_t c = cellid_t(x,y);
+        cellid_t c = cellid_t(x,y);
 
-      double x,y,z;
+        double x,y,z;
 
-      dp->dataset->getCellCoord(c,x,y,z);
+        dp->dataset->getCellCoord(c,x,y,z);
 
-      point_locs.push_back(glutils::vertex_t(x,y,z));
+        point_locs.push_back(glutils::vertex_t(x,y,z));
+      }
     }
 
     rect_size_t s = r.size();
 
     glutils::idx_t p1=0,p2=1,p3=s[0]/2+2,p4 = s[0]/2+1;
 
-    for(cell_coord_t y = r.bottom()+1; y<r.top(); y+=2)
+    for(cell_coord_t y = r[1][0]+1; y<r[1][1]; y+= 2)
     {
-      for(cell_coord_t x = r.left()+1; x<r.right(); x+=2)
+      for(cell_coord_t x = r[0][0]+1; x<r[0][1]; x+=2)
       {
         tri_idxs.push_back(glutils::tri_idx_t(p1,p4,p3));
         tri_idxs.push_back(glutils::tri_idx_t(p1,p3,p2));

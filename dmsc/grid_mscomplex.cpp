@@ -1,6 +1,8 @@
 #include <cmath>
 #include <queue>
 
+#include <logutil.h>
+
 #include <grid_mscomplex.h>
 #include <grid_mscomplex_ensure.h>
 #include <limits>
@@ -239,21 +241,14 @@ namespace grid
     if (!msc2.m_rect.intersection (msc1.m_rect,ixn))
       throw std::logic_error ("rects should intersect for merge");
 
-    if ( (ixn.left() != ixn.right()) && (ixn.top() != ixn.bottom()))
+    if ( ixn.eff_dim() != gc_grid_dim -1)
       throw std::logic_error ("rects must merge along a 1 manifold");
-
-    if (ixn.bottom_left() == ixn.top_right())
-      throw std::logic_error ("rects cannot merge along a point alone");
 
     // TODO: ensure that the union of  rects is not including anything extra
 
-    rect_t r =
-        rect_t (std::min (msc1.m_rect.bottom_left(),msc2.m_rect.bottom_left()),
-                std::max (msc1.m_rect.top_right(),msc2.m_rect.top_right()));
+    rect_t r = msc1.m_rect.bounding_box(msc2.m_rect);
 
-    rect_t e =
-        rect_t (std::min (msc1.m_ext_rect.bottom_left(),msc2.m_ext_rect.bottom_left()),
-                std::max (msc1.m_ext_rect.top_right(),msc2.m_ext_rect.top_right()));
+    rect_t e = msc1.m_ext_rect.bounding_box(msc2.m_ext_rect);
 
     mscomplex_t * out_msc = new mscomplex_t(r,e);
 
@@ -324,9 +319,9 @@ namespace grid
     }
 
     // carry out the cancellation
-    for(cell_coord_t y = ixn.bottom(); y <= ixn.top();++y)
+    for(cell_coord_t y = ixn[1][0]; y <= ixn[1][1];++y)
     {
-      for(cell_coord_t x = ixn.left(); x <= ixn.right();++x)
+      for(cell_coord_t x = ixn[0][0]; x <= ixn[0][1];++x)
       {
         cellid_t c(x,y);
 
@@ -359,23 +354,19 @@ namespace grid
 
   void mscomplex_t::merge_down(mscomplex_t& msc1,mscomplex_t& msc2)
   {
-    // form the intersection rect
     rect_t ixn;
 
     if (!msc2.m_rect.intersection (msc1.m_rect,ixn))
       throw std::logic_error ("rects should intersect for merge");
 
-    if ( (ixn.left() != ixn.right()) && (ixn.top() != ixn.bottom()))
+    if ( ixn.eff_dim() != gc_grid_dim -1)
       throw std::logic_error ("rects must merge along a 1 manifold");
 
-    if (ixn.bottom_left() == ixn.top_right())
-      throw std::logic_error ("rects cannot merge along a point alone");
-
-    // carry out the uncancellation
-    for(cell_coord_t y = ixn.top(); y >= ixn.bottom();--y)
+    for(cell_coord_t y = ixn[1][1]; y >= ixn[1][0];--y)
     {
-      for(cell_coord_t x = ixn.right(); x >= ixn.left();--x)
+      for(cell_coord_t x = ixn[0][1]; x >= ixn[0][0];--x)
       {
+
         cellid_t c(x,y);
 
         if(this->m_id_cp_map.count(c) != 1)
@@ -784,16 +775,25 @@ namespace boost
     template<class Archive>
     void serialize(Archive & ar, grid::rect_point_t & r, const unsigned int )
     {
-      typedef boost::array<grid::rect_point_t::value_type,grid::rect_point_t::static_size> rect_point_base_t;
+      typedef boost::array<grid::rect_point_t::value_type,grid::rect_point_t::static_size> base_t;
 
-      ar & boost::serialization::base_object<rect_point_base_t>(r);
+      ar & boost::serialization::base_object<base_t>(r);
+    }
+
+    template<class Archive>
+    void serialize(Archive & ar, grid::rect_range_t & r, const unsigned int )
+    {
+      typedef boost::array<grid::rect_range_t::value_type,grid::rect_range_t::static_size> base_t;
+
+      ar & boost::serialization::base_object<base_t>(r);
     }
 
     template<class Archive>
     void serialize(Archive & ar, grid::rect_t & r, const unsigned int )
     {
-      ar & r.bl;
-      ar & r.tr;
+      typedef boost::array<grid::rect_t::value_type,grid::rect_t::static_size> base_t;
+
+      ar & boost::serialization::base_object<base_t>(r);
     }
 
     template<class Archive>

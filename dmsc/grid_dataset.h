@@ -79,8 +79,8 @@ namespace grid
     cellflag_array_t  *m_cell_flags;
     cellid_list_t      m_critical_cells;
 
-    critpt_idx_list_t  m_saddle_incidence_idx_offset;
-    critpt_idx_list_t  m_saddle_incidence_idx;
+    std::vector<uint>  m_saddle_incidence_idx_offset;
+    std::vector<uint>  m_saddle_incidence_idx;
 
     cl_mem             m_cell_pair_img;
     cl_mem             m_cell_flag_img;
