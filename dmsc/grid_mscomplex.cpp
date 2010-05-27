@@ -3,7 +3,6 @@
 
 #include <grid_mscomplex.h>
 #include <limits>
-#include <grid_dataset.h>
 
 namespace grid
 {
@@ -38,12 +37,6 @@ namespace grid
 
           new_edges->push_back(*des1_it );
           new_edges->push_back(*asc0_it );
-        }
-
-        if ( msc->m_cps[ *asc0_it ]->des.count ( *des1_it ) >= 2 )
-        {
-          msc->m_cps[ *asc0_it ]->isOnStrangulationPath = true;
-          msc->m_cps[ *des1_it ]->isOnStrangulationPath = true;
         }
       }
     }
@@ -172,8 +165,8 @@ namespace grid
 
     dest_cp->isCancelled              = cp.isCancelled;
     dest_cp->isBoundryCancelable      = cp.isBoundryCancelable;
-    dest_cp->isOnStrangulationPath    = cp.isOnStrangulationPath;
     dest_cp->cellid                   = cp.cellid;
+    dest_cp->index                    = cp.index;
     dest_cp->fn                       = cp.fn;
 
     msc.m_id_cp_map[dest_cp->cellid]  = msc.m_cps.size();
@@ -526,6 +519,42 @@ namespace grid
       return c2 > c4;
     }
   };
+
+  bool is_valid_cancel_edge(mscomplex_t * msc , uint cp0_ind,uint cp1_ind)
+  {
+
+    critpt_t * cp0 = msc->m_cps[cp0_ind];
+    critpt_t * cp1 = msc->m_cps[cp1_ind];
+
+
+    if(msc->m_cps[cp0_ind]->index > msc->m_cps[cp1_ind]->index)
+    {
+      std::swap(cp0_ind,cp1_ind);
+      std::swap(cp0,cp1);
+    }
+
+    if(msc->m_cps[cp0_ind]->index + 1 != msc->m_cps[cp1_ind]->index)
+      throw std::logic_error("failed to ensure index 1 separation");
+
+    if( ( cp0->isCancelled  ) ||( cp1->isCancelled ) )
+      return false;
+
+    if(msc->m_rect.isOnBoundry(cp0->cellid) && !msc->m_rect.isOnBoundry(cp1->cellid))
+      return false;
+
+    if(!msc->m_rect.isOnBoundry(cp0->cellid) && msc->m_rect.isOnBoundry(cp1->cellid))
+      return false;
+
+    if(cp0->asc.count(cp1_ind) > 1)
+      return false;
+
+    if(cp1->des.count(cp0_ind) > 1)
+      return false;
+
+    return true;
+  }
+
+
   void mscomplex_t::simplify(crit_idx_pair_list_t & canc_pairs_list,
                                double simplification_treshold)
   {
@@ -537,8 +566,6 @@ namespace grid
 
     canc_pair_priq_t  canc_pair_priq(comp);
 
-    // add every edge in the descending manifold of the critical point
-
     cell_fn_t max_persistence = 0.0;
 
     cell_fn_t max_val = std::numeric_limits<cell_fn_t>::min();
@@ -548,31 +575,16 @@ namespace grid
     {
       critpt_t *cp = m_cps[i];
 
-      if(dataset_t::s_getCellDim(cp->cellid) == 1)
-      {
-        conn_t *cp_acdc[]={&cp->asc,&cp->des};
-
-        for(uint j =0;j<2;++j)
-        {
-          if(cp_acdc[j]->size() != 2)
-            continue;
-
-          if(*(cp_acdc[j]->begin()) == *(++cp_acdc[j]->begin()))
-            cp->isOnStrangulationPath = true;
-        }
-      }
-
       max_val = std::max(max_val,m_cps[i]->fn);
 
       min_val = std::min(min_val,m_cps[i]->fn);
 
       for(const_conn_iter_t it = cp->des.begin();it != cp->des.end() ;++it)
       {
-        canc_pair_priq.push(std::make_pair(i,*it));
+        if(is_valid_cancel_edge(this,i,*it))
+          canc_pair_priq.push(std::make_pair(i,*it));
       }
     }
-
-    crit_idx_pair_list_t resubmit_strangulations_list;
 
     max_persistence = max_val - min_val;
 
@@ -597,33 +609,7 @@ namespace grid
       if((double)persistence/(double)max_persistence > simplification_treshold)
         break;
 
-      if(dataset_t::s_getCellDim(cp2->cellid) == 1)
-      {
-        std::swap(cp1,cp2);
-        std::swap(v1,v2);
-      }
-
-      uint cp2_dim = dataset_t::s_getCellDim(cp2->cellid);
-
-      if( ( cp1->isCancelled  ) ||( cp2->isCancelled ) )
-        continue;
-
-      if(m_rect.isOnBoundry(cp1->cellid) && !m_rect.isOnBoundry(cp2->cellid))
-        continue;
-
-      if(!m_rect.isOnBoundry(cp1->cellid) && m_rect.isOnBoundry(cp2->cellid))
-        continue;
-
-      conn_t *cp2_acdc[] = {&cp2->asc,&cp2->des};
-
-      if(cp1->isOnStrangulationPath && cp2_acdc[cp2_dim/2]->size() != 1)
-      {
-        // save this to the resubmit queue
-        resubmit_strangulations_list.push_back(canc_pair);
-        continue;
-      }
-
-      if(cp1->isOnStrangulationPath && m_rect.isOnBoundry(cp1->cellid))
+      if(is_valid_cancel_edge(this,v1,v2) == false)
         continue;
 
       std::vector<uint> new_edges;
@@ -644,14 +630,6 @@ namespace grid
       {
         canc_pair_priq.push(std::make_pair(new_edges[i],new_edges[i+1]));
       }
-
-      for(uint i = 0 ; i < resubmit_strangulations_list.size(); i++)
-      {
-        canc_pair_priq.push(resubmit_strangulations_list[i]);
-      }
-
-      resubmit_strangulations_list.clear();
-
     }
     _LOG_VAR(num_cancellations);
   }
@@ -774,7 +752,6 @@ namespace boost
       ar & c.des;
       ar & c.isBoundryCancelable;
       ar & c.isCancelled;
-      ar & c.isOnStrangulationPath;
       ar & c.fn;
       ar & c.pair_idx;
     }

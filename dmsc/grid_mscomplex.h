@@ -51,15 +51,14 @@ namespace grid
       cell_fn_t fn;
 
       bool isCancelled;
-      bool isOnStrangulationPath;
       bool isBoundryCancelable;
 
       critical_point()
       {
         isCancelled           = false;
-        isOnStrangulationPath = false;
         isBoundryCancelable   = false;
         pair_idx              = (u_int) -1;
+        index                 = (u_int) -1;
       }
 
       ~critical_point()
@@ -122,8 +121,6 @@ namespace grid
     {
       if(msc.m_cps[*it]->isBoundryCancelable)
         os<<"*";
-      if(msc.m_cps[*it]->isOnStrangulationPath)
-        os<<"-";
       os<<msc.m_cps[*it]->cellid;
       os<<", ";
     }
@@ -137,8 +134,6 @@ namespace grid
       os<<"des(";
       if(msc.m_cps[i]->isBoundryCancelable)
         os<<"*";
-      if(msc.m_cps[i]->isOnStrangulationPath)
-        os<<"-";
       os<<msc.m_cps[i]->cellid<<") = ";
       print_connections(os,msc,msc.m_cps[i]->des);
       os<<std::endl;
@@ -146,8 +141,6 @@ namespace grid
       os<<"asc(";
       if(msc.m_cps[i]->isBoundryCancelable)
         os<<"*";
-      if(msc.m_cps[i]->isOnStrangulationPath)
-        os<<"-";
       os<<msc.m_cps[i]->cellid<<") = ";
       print_connections(os,msc,msc.m_cps[i]->asc);
       os<<std::endl;
