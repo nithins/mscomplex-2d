@@ -42,9 +42,6 @@ add_subdirectory(utls)
 set(dmsc_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/main.cpp
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/discreteMorseDS.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/discreteMorseAlgorithm.h
-
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid.h
 
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/prefix_scan.h

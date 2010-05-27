@@ -27,7 +27,6 @@
 #include <boost/multi_array.hpp>
 
 #include <grid.h>
-#include <discreteMorseDS.h>
 
 #include <CL/cl.h>
 
@@ -48,9 +47,6 @@ namespace grid
       CELLFLAG_CRITCAL = 2,
     };
 
-    typedef MSComplex<cellid_t>::critical_point                 critpt_t;
-    typedef MSComplex<cellid_t>::critical_point::connection_t   critpt_conn_t;
-    typedef MSComplex<cellid_t>::critical_point::disc_t         critpt_disc_t;
     typedef int8_t                            cell_flag_t;
     typedef boost::multi_array<cell_fn_t,2>   varray_t;
     typedef boost::multi_array<cellid_t,2>    cellpair_array_t;

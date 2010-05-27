@@ -30,7 +30,6 @@
 #include <timer.h>
 
 #include <grid_datamanager.h>
-#include <discreteMorseAlgorithm.h>
 
 #include <grid_mscomplex.h>
 
@@ -39,8 +38,6 @@ namespace grid
 {
 
   using namespace std;
-
-
 
   void datamanager_t::createDataPieces ()
   {

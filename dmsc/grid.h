@@ -358,6 +358,12 @@ namespace grid
   typedef std::vector<cellid_t>            cellid_list_t;
   typedef unsigned int                     critpt_idx_t;
   typedef std::vector<critpt_idx_t>        critpt_idx_list_t;
+  typedef std::vector<cell_fn_t>           cp_fn_list_t;
+  typedef std::pair<uint,uint>             crit_idx_pair_t;
+  typedef std::vector<crit_idx_pair_t>     crit_idx_pair_list_t;
+
+
+  enum eGradDirection {GRADIENT_DIR_DOWNWARD,GRADIENT_DIR_UPWARD,GRADIENT_DIR_COUNT};
 
 }
 

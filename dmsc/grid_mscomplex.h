@@ -23,27 +23,64 @@
 
 #include <cpputils.h>
 
-#include <discreteMorseDS.h>
+
 #include <grid.h>
-
-
-
 
 namespace grid
 {
-  typedef std::pair<uint,uint>                        crit_idx_pair_t;
-  typedef std::vector<crit_idx_pair_t>                crit_idx_pair_list_t;
-  typedef MSComplex<cellid_t>::critical_point                 critpt_t;
-  typedef MSComplex<cellid_t>::critical_point::connection_t   conn_t;
-  typedef MSComplex<cellid_t>::critical_point::disc_t         critpt_disc_t;
-  typedef conn_t::iterator                            conn_iter_t;
-  typedef conn_t::const_iterator                      const_conn_iter_t;
-  typedef std::vector<cell_fn_t>                      cp_fn_list_t;
 
-
-
-  class mscomplex_t: public MSComplex<cellid_t>
+  class mscomplex_t
   {
+
+  public:
+
+    struct critical_point;
+
+    typedef std::map<cellid_t,uint>           id_cp_map_t;
+    typedef std::vector<critical_point *> cp_ptr_list_t;
+
+    struct critical_point
+    {
+      typedef std::multiset<uint>     connection_t;
+      typedef std::vector<cellid_t>   disc_t;
+
+      cellid_t cellid;
+
+      u_int pair_idx;
+      u_int index;
+
+      bool isCancelled;
+      bool isOnStrangulationPath;
+      bool isBoundryCancelable;
+
+      critical_point()
+      {
+        isCancelled           = false;
+        isOnStrangulationPath = false;
+        isBoundryCancelable   = false;
+        pair_idx              = (u_int) -1;
+      }
+
+      ~critical_point()
+      {
+        asc.clear();
+        des.clear();
+
+        asc_disc.clear();
+        des_disc.clear();
+      }
+
+
+      disc_t asc_disc;
+      disc_t des_disc;
+
+      connection_t asc;
+      connection_t des;
+    };
+
+    cp_ptr_list_t m_cps;
+    id_cp_map_t   m_id_cp_map;
+
   public:
     rect_t        m_rect;
     rect_t        m_ext_rect;
@@ -66,8 +103,57 @@ namespace grid
 
     mscomplex_t(){}
 
+    ~mscomplex_t();
+
     void write_discs(const std::string &fn_prefix);
   };
+
+  typedef mscomplex_t::critical_point                 critpt_t;
+  typedef mscomplex_t::critical_point::connection_t   conn_t;
+  typedef mscomplex_t::critical_point::disc_t         critpt_disc_t;
+  typedef conn_t::iterator                            conn_iter_t;
+  typedef conn_t::const_iterator                      const_conn_iter_t;
+
+  inline void print_connections  (std::ostream & os,const mscomplex_t &msc,const conn_t &conn )
+  {
+
+    os<<"{ ";
+    for(conn_iter_t it = conn.begin(); it != conn.end(); ++it)
+    {
+      if(msc.m_cps[*it]->isBoundryCancelable)
+        os<<"*";
+      if(msc.m_cps[*it]->isOnStrangulationPath)
+        os<<"-";
+      os<<msc.m_cps[*it]->cellid;
+      os<<", ";
+    }
+    os<<"}";
+  }
+
+  inline void print_connections(std::ostream & os,const mscomplex_t &msc)
+  {
+    for(uint i = 0 ; i < msc.m_cps.size();++i)
+    {
+      os<<"des(";
+      if(msc.m_cps[i]->isBoundryCancelable)
+        os<<"*";
+      if(msc.m_cps[i]->isOnStrangulationPath)
+        os<<"-";
+      os<<msc.m_cps[i]->cellid<<") = ";
+      print_connections(os,msc,msc.m_cps[i]->des);
+      os<<std::endl;
+
+      os<<"asc(";
+      if(msc.m_cps[i]->isBoundryCancelable)
+        os<<"*";
+      if(msc.m_cps[i]->isOnStrangulationPath)
+        os<<"-";
+      os<<msc.m_cps[i]->cellid<<") = ";
+      print_connections(os,msc,msc.m_cps[i]->asc);
+      os<<std::endl;
+      os<<std::endl;
+    }
+  }
 }
 
 

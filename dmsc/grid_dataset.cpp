@@ -1,7 +1,7 @@
 #include <grid_dataset.h>
 
-#include <discreteMorseAlgorithm.h>
 #include <vector>
+#include <queue>
 
 #include <timer.h>
 
@@ -1178,7 +1178,7 @@ namespace grid
 
         if( cp_dim == 1)
         {
-          critpt_conn_t * cp_conn = (getCellDim(pair_cp->cellid) == 0)? (&cp->des):(&cp->asc);
+          conn_t * cp_conn = (getCellDim(pair_cp->cellid) == 0)? (&cp->des):(&cp->asc);
 
           if(cp_conn->size() != 1)
           {
@@ -1200,7 +1200,7 @@ namespace grid
         }
         else if(cp_dim == 2)
         {
-          for(critpt_conn_t::iterator it = cp->des.begin() ;it!= cp->des.end();++it)
+          for(conn_iter_t it = cp->des.begin() ;it!= cp->des.end();++it)
           {
             critpt_t * conn_saddle_cp  = msgraph->m_cps[*it];
 
@@ -1210,7 +1210,7 @@ namespace grid
         }
         else if(cp_dim == 0)
         {
-          for(critpt_conn_t::iterator it = cp->asc.begin() ;it!= cp->asc.end();++it)
+          for(conn_iter_t it = cp->asc.begin() ;it!= cp->asc.end();++it)
           {
             critpt_t * conn_saddle_cp  = msgraph->m_cps[*it];
 
@@ -1353,9 +1353,9 @@ namespace grid
        dataset_t::s_getCellDim(msgraph->m_cps[cp2_ind]->cellid))
       std::swap(cp1_ind,cp2_ind);
 
-    dataset_t::critpt_t *cp1 = msgraph->m_cps[cp1_ind];
+    critpt_t *cp1 = msgraph->m_cps[cp1_ind];
 
-    dataset_t::critpt_t *cp2 = msgraph->m_cps[cp2_ind];
+    critpt_t *cp2 = msgraph->m_cps[cp2_ind];
 
     cp1->index = dataset_t::s_getCellDim(msgraph->m_cps[cp1_ind]->cellid);
 
@@ -1368,21 +1368,25 @@ namespace grid
 
   void dataset_t::writeout_connectivity_ocl(mscomplex_t *msgraph)
   {
-    addCriticalPointsToMSComplex
-        (msgraph,m_critical_cells.begin(),m_critical_cells.end());
 
-    msgraph->m_cp_fns.resize(m_critical_cells.size());
-
-    for (cellid_list_t::iterator it = m_critical_cells.begin() ;
-    it != m_critical_cells.end();++it)
+    for (uint i = 0 ; i <m_critical_cells.size(); ++i)
     {
-      cellid_t c = *it;
+      critpt_t * cp             = new critpt_t;
+      cp->cellid                = m_critical_cells[i];
+      msgraph->m_id_cp_map.insert ( std::make_pair ( m_critical_cells[i],i ) );
 
-      uint cp_idx = msgraph->m_id_cp_map[c];
+      msgraph->m_cps.push_back(cp);
 
-      msgraph->m_cp_fns[cp_idx] = get_cell_fn(c);
+      msgraph->m_cp_fns.push_back(get_cell_fn(cp->cellid));
+    }
+
+    for (uint i = 0 ; i <m_critical_cells.size(); ++i)
+    {
+      cellid_t c = m_critical_cells[i];
 
       if(!isCellPaired(c))  continue;
+
+      critpt_idx_t cp_idx = i;
 
       msgraph->m_cps[cp_idx]->isBoundryCancelable = true;
 
@@ -1419,9 +1423,9 @@ namespace grid
 
     uint cp2_ind = msgraph->m_id_cp_map[c2];
 
-    dataset_t::critpt_t *cp1 = msgraph->m_cps[cp1_ind];
+    critpt_t *cp1 = msgraph->m_cps[cp1_ind];
 
-    dataset_t::critpt_t *cp2 = msgraph->m_cps[cp2_ind];
+    critpt_t *cp2 = msgraph->m_cps[cp2_ind];
 
     cp1->index = dataset_t::s_getCellDim(msgraph->m_cps[cp1_ind]->cellid);
 
@@ -1990,20 +1994,36 @@ namespace grid
   void  dataset_t::writeout_connectivity(mscomplex_t *msgraph)
   {
 
-    addCriticalPointsToMSComplex
-        (msgraph,m_critical_cells.begin(),m_critical_cells.end());
+    for (uint i = 0 ; i <m_critical_cells.size(); ++i)
+    {
+      critpt_t * cp             = new critpt_t;
+      cp->cellid                = m_critical_cells[i];
+      msgraph->m_id_cp_map.insert ( std::make_pair ( m_critical_cells[i],i ) );
 
-    msgraph->m_cp_fns.resize(m_critical_cells.size());
+      msgraph->m_cps.push_back(cp);
+
+      msgraph->m_cp_fns.push_back(get_cell_fn(cp->cellid));
+    }
+
+    for (uint i = 0 ; i <m_critical_cells.size(); ++i)
+    {
+      cellid_t c = m_critical_cells[i];
+
+      if(!isCellPaired(c))  continue;
+
+      critpt_idx_t cp_idx = i;
+
+      msgraph->m_cps[cp_idx]->isBoundryCancelable = true;
+
+      msgraph->m_cps[cp_idx]->pair_idx =
+          msgraph->m_id_cp_map[getCellPairId(c)];
+    }
 
 
     for (cellid_list_t::iterator it = m_critical_cells.begin() ;
     it != m_critical_cells.end();++it)
     {
       cellid_t c = *it;
-
-      uint cp_idx = msgraph->m_id_cp_map[c];
-
-      msgraph->m_cp_fns[cp_idx] = get_cell_fn(c);
 
       if(getCellDim(c) == 1)
       {
@@ -2028,13 +2048,6 @@ namespace grid
             connectCps(msgraph,c,cf_own_cp);
         }
       }
-
-      if(!isCellPaired(c))  continue;
-
-      msgraph->m_cps[cp_idx]->isBoundryCancelable = true;
-
-      msgraph->m_cps[cp_idx]->pair_idx =
-          msgraph->m_id_cp_map[getCellPairId(c)];
     }
   }
 
