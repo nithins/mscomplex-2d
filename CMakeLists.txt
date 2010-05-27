@@ -52,6 +52,7 @@ set(dmsc_SRCS
 
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_mscomplex.h
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_mscomplex.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_mscomplex_ensure.h
 
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_datamanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid_datamanager.cpp

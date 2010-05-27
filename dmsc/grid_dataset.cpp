@@ -1158,190 +1158,69 @@ namespace grid
     return 4;
   }
 
+  void compute_disc_bfs
+      (dataset_t *dataset,
+       critpt_disc_t *disc,
+       cellid_t start_cellId,
+       eGradientDirection gradient_dir
+       )
+  {
+    typedef cellid_t id_type;
+
+    std::queue<id_type> cell_queue;
+
+    cell_queue.push ( start_cellId );
+
+    while ( !cell_queue.empty() )
+    {
+      id_type top_cell = cell_queue.front();
+
+      cell_queue.pop();
+
+      disc->push_back(top_cell);
+
+      id_type cets[20];
+
+      uint cet_ct = ( dataset->*getcets[gradient_dir] ) ( top_cell,cets );
+
+      for ( uint i = 0 ; i < cet_ct ; i++ )
+      {
+        if ( !dataset->isCellCritical ( cets[i] ) )
+        {
+          if ( !dataset->isCellExterior ( cets[i] ) )
+          {
+            id_type next_cell = dataset->getCellPairId ( cets[i] );
+
+            if ( dataset->getCellDim ( top_cell ) ==
+                 dataset->getCellDim ( next_cell ) &&
+                 next_cell != top_cell )
+            {
+              cell_queue.push ( next_cell );
+            }
+          }
+        }
+      }
+    }
+  }
+
   int dataset_t::postMergeFillDiscs(mscomplex_t *msgraph)
   {
+    msgraph->add_disc_tracking_seed_cps();
 
-    std::map<cellid_t,critpt_disc_t *> surv_crit_asc_disc_map;
-    std::map<cellid_t,critpt_disc_t *> surv_crit_des_disc_map;
-    std::vector<uint> surv_saddle_idxs;
-
-    // update local copy of owner extrema with the cancllation info
-    for(uint i = 0 ; i < msgraph->m_cps.size();++i)
+    for(uint i = 0 ; i < msgraph->m_cps.size() ; ++i)
     {
       critpt_t * cp = msgraph->m_cps[i];
 
-      int cp_dim = getCellDim(cp->cellid);
+      if(cp->index != 1) continue;
 
-      if(cp->isBoundryCancelable == true)
+      for(uint dir = 0 ; dir < GRADDIR_COUNT;++dir)
       {
-        critpt_t * pair_cp = msgraph->m_cps[cp->pair_idx];
-
-        if( cp_dim == 1)
+        if(cp->disc[dir].size() == 1)
         {
-          conn_t * cp_conn = (getCellDim(pair_cp->cellid) == 0)? (&cp->des):(&cp->asc);
-
-          if(cp_conn->size() != 1)
-          {
-            log_range(cp_conn->begin(),cp_conn->end(),boost::bind(&get_cp_cellid,msgraph,_1),"conns");
-
-            throw std::logic_error("I should be connected to exactly one surv extrema");
-          }
-
-          critpt_t * extrema_cp =msgraph->m_cps[*cp_conn->begin()];
-
-          if(pair_cp->pair_idx != i)
-            throw std::logic_error("My pair does not know Im paired with him");
-
-          if(m_rect.contains(cp->cellid))
-            (*m_cell_own)(cp->cellid) = extrema_cp->cellid;
-
-          if(m_rect.contains(pair_cp->cellid))
-            (*m_cell_own)(pair_cp->cellid) = extrema_cp->cellid;
-        }
-        else if(cp_dim == 2)
-        {
-          for(conn_iter_t it = cp->des.begin() ;it!= cp->des.end();++it)
-          {
-            critpt_t * conn_saddle_cp  = msgraph->m_cps[*it];
-
-            if(m_rect.contains(pair_cp->cellid))
-              conn_saddle_cp->asc_disc.push_back(pair_cp->cellid);
-          }
-        }
-        else if(cp_dim == 0)
-        {
-          for(conn_iter_t it = cp->asc.begin() ;it!= cp->asc.end();++it)
-          {
-            critpt_t * conn_saddle_cp  = msgraph->m_cps[*it];
-
-            if(m_rect.contains(pair_cp->cellid))
-              conn_saddle_cp->des_disc.push_back(pair_cp->cellid);
-          }
+          cp->disc[dir].clear();
+          compute_disc_bfs(this,&cp->disc[dir],cp->cellid,(eGradientDirection)dir);
         }
       }
-      else// not boundry cancellabele
-      {
-        switch(cp_dim)
-        {
-        case 0 :
-          surv_crit_asc_disc_map.insert(std::make_pair(cp->cellid,&cp->asc_disc));
-          break;
-        case 1:
-          {
-            cellid_t inc_cells[4];
-
-            getCellIncCells(cp->cellid,inc_cells);
-
-            for(uint j = 0 ; j < 4 ; ++j)
-            {
-              if(m_rect.contains(inc_cells[j])
-                && isCellPaired(inc_cells[j])
-                && !isCellCritical(inc_cells[j])
-                )
-                {
-                critpt_disc_t * disc =
-                    (getCellDim(inc_cells[j]) ==0)?(&cp->des_disc):(&cp->asc_disc);
-
-                disc->push_back(getCellPairId(inc_cells[j]));
-              }
-            }
-            surv_saddle_idxs.push_back(i);
-
-            break;
-          }
-
-        case 2:
-          surv_crit_des_disc_map.insert(std::make_pair(cp->cellid,&cp->des_disc));
-        }
-      }
-    }
-
-    // all 0 d cells are owned by some minima
-    for (cell_coord_t y = m_rect.bottom(); ;y += 2)
-    {
-      for (cell_coord_t x = m_rect.left(); ;x += 2)
-      {
-        cellid_t c (x,y);
-
-        cellid_t o = (*m_cell_own)(c);
-
-        if(m_rect.contains(o))
-        {
-          o = (*m_cell_own)(o);
-        }
-
-        if(o[0] != -1 && o[1] != -1)
-        {
-          surv_crit_asc_disc_map[o]->push_back(c);
-        }
-
-        if(x == m_rect.right()) break;
-      }
-      if(y == m_rect.top()) break;
-    }
-
-    // all 2 d cells are owned by some maxima
-    for (cell_coord_t y = m_rect.bottom()+1;;y += 2)
-    {
-      for (cell_coord_t x = m_rect.left()+1;;x += 2)
-      {
-        cellid_t c (x,y);
-
-        cellid_t o = (*m_cell_own)(c);
-
-        if(m_rect.contains(o))
-        {
-          o = (*m_cell_own)(o);
-        }
-
-        if(o[0] != -1 && o[1] != -1)
-        {
-          surv_crit_des_disc_map[o]->push_back(c);
-        }
-        if(x + 1 == m_rect.right()) break;
-      }
-      if(y + 1== m_rect.top()) break;
-    }
-    // all surv saddles must now contain seed points to track their 1 manifold
-
-    for(uint i = 0 ;i < surv_saddle_idxs.size();++i)
-    {
-      critpt_t * cp = msgraph->m_cps[surv_saddle_idxs[i]];
-
-      critpt_disc_t * disc[] = {&cp->asc_disc,&cp->des_disc};
-
-      for(uint j = 0 ; j <2;++j)
-      {
-        uint path_cell_idx = 0;
-
-        while(path_cell_idx != disc[j]->size())
-        {
-          cellid_t path_cell = (*disc[j])[path_cell_idx];
-
-          cellid_t cets[2];
-
-          uint cet_ct = ( this->*getcets[(j+1)%2] )(path_cell,cets);
-
-          for(uint k = 0 ; k < cet_ct;++k)
-          {
-            if(isCellCritical(cets[k]))
-              continue;
-
-            if(m_rect.contains(cets[k]) == false)
-              continue;
-
-            cellid_t p = getCellPairId(cets[k]);
-
-            if( p== path_cell || m_rect.contains(cets[k]) == false)
-              continue;
-
-            disc[j]->push_back(p);
-          }
-
-          path_cell_idx++;
-        }
-      }
-
     }
 
     return 0;
@@ -1349,45 +1228,27 @@ namespace grid
 
   void connectCps (mscomplex_t *msgraph,uint cp1_ind,uint cp2_ind)
   {
-    if(dataset_t::s_getCellDim(msgraph->m_cps[cp1_ind]->cellid) <
-       dataset_t::s_getCellDim(msgraph->m_cps[cp2_ind]->cellid))
-      std::swap(cp1_ind,cp2_ind);
-
-    critpt_t *cp1 = msgraph->m_cps[cp1_ind];
-
-    critpt_t *cp2 = msgraph->m_cps[cp2_ind];
-
-    cp1->index = dataset_t::s_getCellDim(msgraph->m_cps[cp1_ind]->cellid);
-
-    cp2->index = dataset_t::s_getCellDim(msgraph->m_cps[cp2_ind]->cellid);
-
-    cp1->des.insert (cp2_ind);
-
-    cp2->asc.insert (cp1_ind);
+    msgraph->connect_cps(uint_pair_t(cp1_ind,cp2_ind));
   }
 
   void dataset_t::writeout_connectivity_ocl(mscomplex_t *msgraph)
   {
-
     for (uint i = 0 ; i <m_critical_cells.size(); ++i)
     {
-      critpt_t * cp             = new critpt_t;
-      cp->cellid                = m_critical_cells[i];
-      cp->fn                    = get_cell_fn(m_critical_cells[i]);
-      msgraph->m_id_cp_map.insert ( std::make_pair ( m_critical_cells[i],i ) );
+      cellid_t &c = m_critical_cells[i];
 
-      msgraph->m_cps.push_back(cp);
+      msgraph->add_critpt(c,getCellDim(c),get_cell_fn(c));
     }
 
     for (uint i = 0 ; i <m_critical_cells.size(); ++i)
     {
-      cellid_t c = m_critical_cells[i];
+      cellid_t &c = m_critical_cells[i];
 
       if(!isCellPaired(c))  continue;
 
       critpt_idx_t cp_idx = i;
 
-      msgraph->m_cps[cp_idx]->isBoundryCancelable = true;
+      msgraph->m_cps[cp_idx]->is_paired = true;
 
       msgraph->m_cps[cp_idx]->pair_idx =
           msgraph->m_id_cp_map[getCellPairId(c)];
@@ -1406,33 +1267,7 @@ namespace grid
 
   void connectCps (mscomplex_t *msgraph,cellid_t c1,cellid_t c2)
   {
-    if (dataset_t::s_getCellDim (c1) <dataset_t::s_getCellDim (c2))
-      std::swap (c1,c2);
-
-    if (dataset_t::s_getCellDim (c1) != dataset_t::s_getCellDim (c2) +1)
-      throw std::logic_error ("must connect i,i+1 cp (or vice versa)");
-
-    if (msgraph->m_id_cp_map.find (c1) == msgraph->m_id_cp_map.end())
-      throw std::logic_error (_SSTR ("cell not in id_cp_map c1="<<c1));
-
-    if (msgraph->m_id_cp_map.find (c2) == msgraph->m_id_cp_map.end())
-      throw std::logic_error (_SSTR ("cell not in id_cp_map c2="<<c2));
-
-    uint cp1_ind = msgraph->m_id_cp_map[c1];
-
-    uint cp2_ind = msgraph->m_id_cp_map[c2];
-
-    critpt_t *cp1 = msgraph->m_cps[cp1_ind];
-
-    critpt_t *cp2 = msgraph->m_cps[cp2_ind];
-
-    cp1->index = dataset_t::s_getCellDim(msgraph->m_cps[cp1_ind]->cellid);
-
-    cp2->index = dataset_t::s_getCellDim(msgraph->m_cps[cp2_ind]->cellid);
-
-    cp1->des.insert (cp2_ind);
-
-    cp2->asc.insert (cp1_ind);
+    msgraph->connect_cps(c1,c2);
   }
 
   inline bool lowestPairableCoFacet
@@ -1494,7 +1329,7 @@ namespace grid
 
 
   void track_gradient_tree_bfs
-      (dataset_t *dataset,cellid_t start_cellId,eGradDirection gradient_dir)
+      (dataset_t *dataset,cellid_t start_cellId,eGradientDirection gradient_dir)
   {
     std::queue<cellid_t> cell_queue;
 
@@ -1978,10 +1813,10 @@ namespace grid
       switch (getCellDim (*it))
       {
       case 0:
-        track_gradient_tree_bfs(this,*it,GRADIENT_DIR_UPWARD);
+        track_gradient_tree_bfs(this,*it,GRADDIR_ASCENDING);
         break;
       case 2:
-        track_gradient_tree_bfs(this,*it,GRADIENT_DIR_DOWNWARD);
+        track_gradient_tree_bfs(this,*it,GRADDIR_DESCENDING);
         break;
       default:
         break;
@@ -1995,28 +1830,24 @@ namespace grid
 
     for (uint i = 0 ; i <m_critical_cells.size(); ++i)
     {
-      critpt_t * cp             = new critpt_t;
-      cp->cellid                = m_critical_cells[i];
-      cp->fn                    = get_cell_fn(m_critical_cells[i]);
-      msgraph->m_id_cp_map.insert ( std::make_pair ( m_critical_cells[i],i ) );
+      cellid_t &c = m_critical_cells[i];
 
-      msgraph->m_cps.push_back(cp);
+      msgraph->add_critpt(c,getCellDim(c),get_cell_fn(c));
     }
 
     for (uint i = 0 ; i <m_critical_cells.size(); ++i)
     {
-      cellid_t c = m_critical_cells[i];
+      cellid_t &c = m_critical_cells[i];
 
       if(!isCellPaired(c))  continue;
 
       critpt_idx_t cp_idx = i;
 
-      msgraph->m_cps[cp_idx]->isBoundryCancelable = true;
+      msgraph->m_cps[cp_idx]->is_paired = true;
 
       msgraph->m_cps[cp_idx]->pair_idx =
           msgraph->m_id_cp_map[getCellPairId(c)];
     }
-
 
     for (cellid_list_t::iterator it = m_critical_cells.begin() ;
     it != m_critical_cells.end();++it)

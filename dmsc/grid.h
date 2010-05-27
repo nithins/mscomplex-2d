@@ -104,6 +104,15 @@ namespace grid
 	return point_def((*this)[0]/s,(*this)[1]/s);
       }
 
+      std::string to_string()
+      {
+        std::stringstream ss;
+
+        ((std::ostream&)ss)<<(*this);
+
+        return ss.str();
+      }
+
     };
 
     struct rectangle_def
@@ -348,6 +357,8 @@ namespace grid
     }
   };
 
+  const uint gc_grid_dim = 2;
+
   typedef int16_t                          cell_coord_t;
   typedef float                            cell_fn_t;
   typedef rectangle_complex<cell_coord_t>  rect_cmplx_t;
@@ -358,12 +369,14 @@ namespace grid
   typedef std::vector<cellid_t>            cellid_list_t;
   typedef unsigned int                     critpt_idx_t;
   typedef std::vector<critpt_idx_t>        critpt_idx_list_t;
-  typedef std::vector<cell_fn_t>           cp_fn_list_t;
-  typedef std::pair<uint,uint>             crit_idx_pair_t;
-  typedef std::vector<crit_idx_pair_t>     crit_idx_pair_list_t;
 
 
-  enum eGradDirection {GRADIENT_DIR_DOWNWARD,GRADIENT_DIR_UPWARD,GRADIENT_DIR_COUNT};
+  enum eGradientDirection
+  {
+    GRADDIR_DESCENDING,
+    GRADDIR_ASCENDING,
+    GRADDIR_COUNT,
+  };
 
 }
 

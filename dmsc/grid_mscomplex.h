@@ -21,82 +21,82 @@
 #ifndef __GRID_MSCOMPLEX_H_INCLUDED_
 #define __GRID_MSCOMPLEX_H_INCLUDED_
 
-#include <cpputils.h>
-
+#include <set>
+#include <map>
 
 #include <grid.h>
 
 namespace grid
 {
 
+  typedef std::vector<uint>         critpt_idx_list_t;
+  typedef std::vector<cell_fn_t>    cp_fn_list_t;
+  typedef two_tuple_t<uint>         uint_pair_t;
+  typedef std::vector<uint_pair_t>  uint_pair_list_t;
+
+  struct critpt_t
+  {
+    typedef std::multiset<uint>     conn_set_t;
+    typedef std::vector<cellid_t>   disc_t;
+    typedef std::vector<uint>       disc_contrib_t;
+
+    cellid_t     cellid;
+    uint         pair_idx;
+    cell_fn_t    fn;
+    uchar        index;
+
+    bool isCancelled;
+    bool is_paired;
+
+    critpt_t()
+    {
+      isCancelled           = false;
+      is_paired             = false;
+      pair_idx              = -1;
+    }
+
+    // list of idx's of cancelled cps that contribute their disc to this cp
+
+    disc_contrib_t contrib[GRADDIR_COUNT];
+    disc_t         disc[GRADDIR_COUNT] ;
+    conn_set_t     conn[GRADDIR_COUNT];
+  };
+
+
   class mscomplex_t
   {
-
   public:
 
-    struct critical_point;
+    typedef std::map<cellid_t,uint>  id_cp_map_t;
+    typedef std::vector<critpt_t *>  critpt_list_t;
 
-    typedef std::map<cellid_t,uint>           id_cp_map_t;
-    typedef std::vector<critical_point *> cp_ptr_list_t;
-
-    struct critical_point
-    {
-      typedef std::multiset<uint>     connection_t;
-      typedef std::vector<cellid_t>   disc_t;
-
-      cellid_t cellid;
-
-      u_int pair_idx;
-      u_int index;
-      cell_fn_t fn;
-
-      bool isCancelled;
-      bool isBoundryCancelable;
-
-      critical_point()
-      {
-        isCancelled           = false;
-        isBoundryCancelable   = false;
-        pair_idx              = (u_int) -1;
-        index                 = (u_int) -1;
-      }
-
-      ~critical_point()
-      {
-        asc.clear();
-        des.clear();
-
-        asc_disc.clear();
-        des_disc.clear();
-      }
-
-
-      disc_t asc_disc;
-      disc_t des_disc;
-
-      connection_t asc;
-      connection_t des;
-    };
-
-    cp_ptr_list_t m_cps;
+    critpt_list_t m_cps;
     id_cp_map_t   m_id_cp_map;
 
-  public:
     rect_t        m_rect;
     rect_t        m_ext_rect;
 
-    // call these functions only at the highest levels
+    void connect_cps(cellid_t c1,cellid_t c2);
+
+    void connect_cps(uint_pair_t p);
+
+    void add_critpt(cellid_t c,uchar i,cell_fn_t f);
+
+    void simplify(uint_pair_list_t &,double simplification_treshold);
+
+    void un_simplify(const uint_pair_list_t &);
+
     void simplify_un_simplify(double simplification_treshold );
 
-    void simplify(crit_idx_pair_list_t &,double simplification_treshold);
-
-    void un_simplify(const crit_idx_pair_list_t &);
+    void add_disc_tracking_seed_cps();
 
     void clear();
 
-    static mscomplex_t * merge_up(const mscomplex_t& msc1,const mscomplex_t& msc2);
+    static mscomplex_t * merge_up(const mscomplex_t& msc1,
+                                  const mscomplex_t& msc2);
 
-    void merge_down(mscomplex_t& msc1,mscomplex_t& msc2);
+    void merge_down(mscomplex_t& msc1,
+                    mscomplex_t& msc2);
 
     mscomplex_t(rect_t r,rect_t e):m_rect(r),m_ext_rect(e){}
 
@@ -105,47 +105,20 @@ namespace grid
     ~mscomplex_t();
 
     void write_discs(const std::string &fn_prefix);
+
+    void print_connections(std::ostream & os);
   };
 
-  typedef mscomplex_t::critical_point                 critpt_t;
-  typedef mscomplex_t::critical_point::connection_t   conn_t;
-  typedef mscomplex_t::critical_point::disc_t         critpt_disc_t;
-  typedef conn_t::iterator                            conn_iter_t;
-  typedef conn_t::const_iterator                      const_conn_iter_t;
+  typedef mscomplex_t::critpt_list_t           critpt_list_t;
+  typedef critpt_t::conn_set_t                 conn_set_t;
+  typedef critpt_t::disc_t                     critpt_disc_t;
+  typedef critpt_t::conn_set_t::iterator       conn_iter_t;
+  typedef critpt_t::conn_set_t::const_iterator const_conn_iter_t;
 
-  inline void print_connections  (std::ostream & os,const mscomplex_t &msc,const conn_t &conn )
+  inline void order_pr_by_cp_index(mscomplex_t *msc,uint_pair_t &e)
   {
-
-    os<<"{ ";
-    for(conn_iter_t it = conn.begin(); it != conn.end(); ++it)
-    {
-      if(msc.m_cps[*it]->isBoundryCancelable)
-        os<<"*";
-      os<<msc.m_cps[*it]->cellid;
-      os<<", ";
-    }
-    os<<"}";
-  }
-
-  inline void print_connections(std::ostream & os,const mscomplex_t &msc)
-  {
-    for(uint i = 0 ; i < msc.m_cps.size();++i)
-    {
-      os<<"des(";
-      if(msc.m_cps[i]->isBoundryCancelable)
-        os<<"*";
-      os<<msc.m_cps[i]->cellid<<") = ";
-      print_connections(os,msc,msc.m_cps[i]->des);
-      os<<std::endl;
-
-      os<<"asc(";
-      if(msc.m_cps[i]->isBoundryCancelable)
-        os<<"*";
-      os<<msc.m_cps[i]->cellid<<") = ";
-      print_connections(os,msc,msc.m_cps[i]->asc);
-      os<<std::endl;
-      os<<std::endl;
-    }
+    if(msc->m_cps[e[0]]->index < msc->m_cps[e[1]]->index)
+      std::swap(e[0],e[1]);
   }
 }
 

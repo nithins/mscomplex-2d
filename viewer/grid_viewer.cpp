@@ -126,7 +126,7 @@ namespace grid
 
       double x = c[0],y = dp->msgraph->m_cps[i]->fn,z=c[1];
 
-      if(dp->msgraph->m_cps[i]->isBoundryCancelable)
+      if(dp->msgraph->m_cps[i]->is_paired)
       {
         crit_canc_labels[dim].push_back(ss.str());
         crit_canc_label_locations[dim].push_back(glutils::vertex_t(x,y,z) );
@@ -171,11 +171,11 @@ namespace grid
       if(dp->msgraph->m_cps[i]->isCancelled)
         continue;
 
-      conn_t *cp_acdc[] = {&dp->msgraph->m_cps[i]->des,&dp->msgraph->m_cps[i]->asc};
+      conn_set_t *cp_acdc[] = {&dp->msgraph->m_cps[i]->conn[0],&dp->msgraph->m_cps[i]->conn[1]};
 
       uint acdc_ct = 1;
 
-      if(dp->msgraph->m_cps[i]->isBoundryCancelable)
+      if(dp->msgraph->m_cps[i]->is_paired)
         acdc_ct = 2;
 
       uint cp_ren_idx = crit_ms_idx_ren_idx_map[i];
@@ -185,18 +185,17 @@ namespace grid
 
       for (uint j = 0 ; j < acdc_ct; ++j)
       {
-        for(conn_t::iterator it = cp_acdc[j]->begin();
-        it != cp_acdc[j]->end(); ++it)
+        for(conn_iter_t it = cp_acdc[j]->begin(); it != cp_acdc[j]->end(); ++it)
         {
           if(dp->msgraph->m_cps[*it]->isCancelled)
             throw std::logic_error("this cancelled cp should not be present here");
 
-          if(dp->msgraph->m_cps[*it]->isBoundryCancelable)
+          if(dp->msgraph->m_cps[*it]->is_paired)
             throw std::logic_error("a true cp should not be connected to a bc cp");
 
           uint conn_cp_ren_idx = crit_ms_idx_ren_idx_map[*it];
 
-          if(dp->msgraph->m_cps[i]->isBoundryCancelable)
+          if(dp->msgraph->m_cps[i]->is_paired)
           {
             crit_canc_conn_idxs[dim-1+j].push_back
                 (glutils::line_idx_t(cp_ren_idx,conn_cp_ren_idx));

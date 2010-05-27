@@ -697,7 +697,7 @@ namespace grid
 
       std::stringstream ss;
 
-      print_connections( (ostream&)ss,*dp->msgraph);
+      dp->msgraph->print_connections( (ostream&)ss);
 
       outfile<<ss.str();
     }
