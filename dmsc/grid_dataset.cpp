@@ -11,8 +11,67 @@
 
 typedef GridDataset::cellid_t cellid_t;
 
+std::string cl_error_code_to_string(cl_int err)
+{
+  switch(err)
+  {
+  case CL_DEVICE_NOT_FOUND               :return "CL_DEVICE_NOT_FOUND";
+  case CL_DEVICE_NOT_AVAILABLE           :return "CL_DEVICE_NOT_AVAILABLE";
+  case CL_COMPILER_NOT_AVAILABLE         :return "CL_COMPILER_NOT_AVAILABLE";
+  case CL_MEM_OBJECT_ALLOCATION_FAILURE  :return "CL_MEM_OBJECT_ALLOCATION_FAILURE";
+  case CL_OUT_OF_RESOURCES               :return "CL_OUT_OF_RESOURCES";
+  case CL_OUT_OF_HOST_MEMORY             :return "CL_OUT_OF_HOST_MEMORY";
+  case CL_PROFILING_INFO_NOT_AVAILABLE   :return "CL_PROFILING_INFO_NOT_AVAILABLE";
+  case CL_MEM_COPY_OVERLAP               :return "CL_MEM_COPY_OVERLAP";
+  case CL_IMAGE_FORMAT_MISMATCH          :return "CL_IMAGE_FORMAT_MISMATCH";
+  case CL_IMAGE_FORMAT_NOT_SUPPORTED     :return "CL_IMAGE_FORMAT_NOT_SUPPORTED";
+  case CL_BUILD_PROGRAM_FAILURE          :return "CL_BUILD_PROGRAM_FAILURE";
+  case CL_MAP_FAILURE                    :return "CL_MAP_FAILURE";
+  case CL_INVALID_VALUE                  :return "CL_INVALID_VALUE";
+  case CL_INVALID_DEVICE_TYPE            :return "CL_INVALID_DEVICE_TYPE";
+  case CL_INVALID_PLATFORM               :return "CL_INVALID_PLATFORM";
+  case CL_INVALID_DEVICE                 :return "CL_INVALID_DEVICE";
+  case CL_INVALID_CONTEXT                :return "CL_INVALID_CONTEXT";
+  case CL_INVALID_QUEUE_PROPERTIES       :return "CL_INVALID_QUEUE_PROPERTIES";
+  case CL_INVALID_COMMAND_QUEUE          :return "CL_INVALID_COMMAND_QUEUE";
+  case CL_INVALID_HOST_PTR               :return "CL_INVALID_HOST_PTR";
+  case CL_INVALID_MEM_OBJECT             :return "CL_INVALID_MEM_OBJECT";
+  case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:return "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR";
+  case CL_INVALID_IMAGE_SIZE             :return "CL_INVALID_IMAGE_SIZE";
+  case CL_INVALID_SAMPLER                :return "CL_INVALID_SAMPLER";
+  case CL_INVALID_BINARY                 :return "CL_INVALID_BINARY";
+  case CL_INVALID_BUILD_OPTIONS          :return "CL_INVALID_BUILD_OPTIONS";
+  case CL_INVALID_PROGRAM                :return "CL_INVALID_PROGRAM";
+  case CL_INVALID_PROGRAM_EXECUTABLE     :return "CL_INVALID_PROGRAM_EXECUTABLE";
+  case CL_INVALID_KERNEL_NAME            :return "CL_INVALID_KERNEL_NAME";
+  case CL_INVALID_KERNEL_DEFINITION      :return "CL_INVALID_KERNEL_DEFINITION";
+  case CL_INVALID_KERNEL                 :return "CL_INVALID_KERNEL";
+  case CL_INVALID_ARG_INDEX              :return "CL_INVALID_ARG_INDEX";
+  case CL_INVALID_ARG_VALUE              :return "CL_INVALID_ARG_VALUE";
+  case CL_INVALID_ARG_SIZE               :return "CL_INVALID_ARG_SIZE";
+  case CL_INVALID_KERNEL_ARGS            :return "CL_INVALID_KERNEL_ARGS";
+  case CL_INVALID_WORK_DIMENSION         :return "CL_INVALID_WORK_DIMENSION";
+  case CL_INVALID_WORK_GROUP_SIZE        :return "CL_INVALID_WORK_GROUP_SIZE";
+  case CL_INVALID_WORK_ITEM_SIZE         :return "CL_INVALID_WORK_ITEM_SIZE";
+  case CL_INVALID_GLOBAL_OFFSET          :return "CL_INVALID_GLOBAL_OFFSET";
+  case CL_INVALID_EVENT_WAIT_LIST        :return "CL_INVALID_EVENT_WAIT_LIST";
+  case CL_INVALID_EVENT                  :return "CL_INVALID_EVENT";
+  case CL_INVALID_OPERATION              :return "CL_INVALID_OPERATION";
+  case CL_INVALID_GL_OBJECT              :return "CL_INVALID_GL_OBJECT";
+  case CL_INVALID_BUFFER_SIZE            :return "CL_INVALID_BUFFER_SIZE";
+  case CL_INVALID_MIP_LEVEL              :return "CL_INVALID_MIP_LEVEL";
+  case CL_INVALID_GLOBAL_WORK_SIZE       :return "CL_INVALID_GLOBAL_WORK_SIZE";
+  }
+
+  std::stringstream ss;
+
+  ss<<"unknown cl error code = "<<err;
+
+  return ss.str();
+}
+
 #define _CHECKCL_ERR_CODE(_ERROR,_MESSAGE)\
-if(_ERROR != CL_SUCCESS) throw std::runtime_error(_MESSAGE);
+if(_ERROR != CL_SUCCESS) throw std::runtime_error(cl_error_code_to_string(_ERROR)+"::" + _MESSAGE);
 
 #define _GET_GLOBAL(s,l) (((s)/(2*(l)))*(2*(l)) + ((((s)%(2*(l))) == 0)?(0):(2*l)))
 
@@ -100,7 +159,7 @@ oclKernelSourceInfo s_kernels[OCLKERN_END-OCLKERN_BEGIN] =
 
 const int max_threads_1D   = 128;
 const int max_threads_2D_x = 16;
-const int max_threads_2D_y = 16;
+const int max_threads_2D_y = 8;
 
 void compile_cl_program(std::string prog_filename,std::string header_filename,
                         std::string compile_flags,cl_program &prog,cl_context & context,cl_device_id &device_id)
@@ -183,19 +242,69 @@ void compile_cl_program(std::string prog_filename,std::string header_filename,
 
 }
 
+
+void get_preferred_ocl_platform(cl_platform_id* clSelectedPlatformID)
+{
+  char chBuffer[1024];
+  cl_uint num_platforms;
+  cl_platform_id* clPlatformIDs;
+  cl_int error_code;
+  *clSelectedPlatformID = NULL;
+
+  // Get OpenCL platform count
+  error_code = clGetPlatformIDs (0, NULL, &num_platforms);
+
+  _CHECKCL_ERR_CODE(error_code,"Failed clGetPlatformIDs");
+
+  if(num_platforms == 0) error_code = CL_SUCCESS - 5000;
+
+  _CHECKCL_ERR_CODE(error_code,"Failed clGetPlatformIDs");
+
+  // if there's a platform or more, make space for ID's
+  clPlatformIDs = new cl_platform_id[num_platforms];
+
+  // get platform info for each platform and trap the NVIDIA platform if found
+  error_code = clGetPlatformIDs (num_platforms, clPlatformIDs, NULL);
+
+  _CHECKCL_ERR_CODE(error_code,"Failed clGetPlatformIDs");
+
+  for(cl_uint i = 0; i < num_platforms; ++i)
+  {
+    error_code = clGetPlatformInfo (clPlatformIDs[i], CL_PLATFORM_NAME, 1024, &chBuffer, NULL);
+
+    _CHECKCL_ERR_CODE(error_code,"Failed clGetPlatformIDs");
+
+    if(strstr(chBuffer, "NVIDIA") != NULL)
+    {
+      *clSelectedPlatformID = clPlatformIDs[i];
+      break;
+    }
+  }
+
+  // default to zeroeth platform if NVIDIA not found
+  if(*clSelectedPlatformID == NULL)
+  {
+    _LOG("WARNING: NVIDIA OpenCL platform not found - defaulting to first platform!\n\n");
+    *clSelectedPlatformID = clPlatformIDs[0];
+  }
+
+  delete []clPlatformIDs;
+}
+
+
 void GridDataset::init_opencl()
 {
 
-  int error_code;                            // error code returned from api calls
+  int error_code;
 
-  // Connect to a compute device
-  //
-  error_code = clGetDeviceIDs(NULL, CL_DEVICE_TYPE_GPU , 1, &s_device_id, NULL);
-  if (error_code != CL_SUCCESS)
-    throw std::runtime_error("Error: Failed to create a device group!\n");
+  cl_platform_id cpPlatform;
 
-  // Create a compute context
-  //
+  get_preferred_ocl_platform(&cpPlatform);
+
+  error_code = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU , 1, &s_device_id, NULL);
+
+  _CHECKCL_ERR_CODE(error_code,"Failed to get device ids");
+
   s_context = clCreateContext(0, 1, &s_device_id, NULL, NULL, &error_code);
 
   _CHECKCL_ERR_CODE(error_code,"Failed to create a compute context");
@@ -430,15 +539,15 @@ void GridDataset::assignGradients_ocl(cl_command_queue &commands)
 
   cl_short2 int_bl,int_tr,ext_bl,ext_tr;
 
-  int_bl[0] = m_rect.left();
-  int_bl[1] = m_rect.bottom();
-  int_tr[0] = m_rect.right();
-  int_tr[1] = m_rect.top();
+  int_bl.x = m_rect.left();
+  int_bl.y = m_rect.bottom();
+  int_tr.x = m_rect.right();
+  int_tr.y = m_rect.top();
 
-  ext_bl[0] = m_ext_rect.left();
-  ext_bl[1] = m_ext_rect.bottom();
-  ext_tr[0] = m_ext_rect.right();
-  ext_tr[1] = m_ext_rect.top();
+  ext_bl.x = m_ext_rect.left();
+  ext_bl.y = m_ext_rect.bottom();
+  ext_tr.x = m_ext_rect.right();
+  ext_tr.y = m_ext_rect.top();
 
   unsigned int a = 0;
 
@@ -452,6 +561,11 @@ void GridDataset::assignGradients_ocl(cl_command_queue &commands)
   error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &int_tr);
   error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_bl);
   error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_tr);
+
+  _LOG_VAR(local[0]);
+  _LOG_VAR(local[1]);
+  _LOG_VAR(global[0]);
+  _LOG_VAR(global[1]);
 
   _CHECKCL_ERR_CODE(error_code,"Failed to set assign grad kern args");
 
@@ -568,10 +682,10 @@ void GridDataset::collateCritcalPoints_ocl(cl_command_queue &commands)
 
   cl_short2 ext_bl,ext_tr;
 
-  ext_bl[0] = m_ext_rect.left();
-  ext_bl[1] = m_ext_rect.bottom();
-  ext_tr[0] = m_ext_rect.right();
-  ext_tr[1] = m_ext_rect.top();
+  ext_bl.x = m_ext_rect.left();
+  ext_bl.y = m_ext_rect.bottom();
+  ext_tr.x = m_ext_rect.right();
+  ext_tr.y = m_ext_rect.top();
 
   cl_mem critpt_idx_buf =
       clCreateBuffer(s_context,CL_MEM_READ_WRITE,critpt_idx_buf_sz,NULL,&error_code);
@@ -780,10 +894,10 @@ int  GridDataset::assignCellOwnerExtrema_ocl(cl_command_queue &commands)
 
   cl_short2 ext_bl,ext_tr;
 
-  ext_bl[0] = m_ext_rect.left();
-  ext_bl[1] = m_ext_rect.bottom();
-  ext_tr[0] = m_ext_rect.right();
-  ext_tr[1] = m_ext_rect.top();
+  ext_bl.x = m_ext_rect.left();
+  ext_bl.y = m_ext_rect.bottom();
+  ext_tr.x = m_ext_rect.right();
+  ext_tr.y = m_ext_rect.top();
 
   cl_image_format cell_own_imgfmt;
 
@@ -913,10 +1027,10 @@ void GridDataset::collect_saddle_conn_ocl(cl_command_queue &commands)
 
   cl_short2 ext_bl,ext_tr;
 
-  ext_bl[0] = m_ext_rect.left();
-  ext_bl[1] = m_ext_rect.bottom();
-  ext_tr[0] = m_ext_rect.right();
-  ext_tr[1] = m_ext_rect.top();
+  ext_bl.x = m_ext_rect.left();
+  ext_bl.y = m_ext_rect.bottom();
+  ext_tr.x = m_ext_rect.right();
+  ext_tr.y = m_ext_rect.top();
 
   uint critpt_ct = m_critical_cells.size();
 

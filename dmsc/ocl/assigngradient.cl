@@ -17,7 +17,7 @@ cell_fn_t get_cell_fn(short2 c,__read_only image2d_t vert_fn_img)
   
   float4 col = read_imagef(vert_fn_img, vert_fn_sampler, imgcrd);
   
-  return col[0];     
+  return col.x;     
   
   //return sin(0.0f+0.125f*c.x + 0.5f)*sin(0.0f+0.125f*c.y + 0.5f);
 }
