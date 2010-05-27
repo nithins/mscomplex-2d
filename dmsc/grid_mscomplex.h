@@ -48,6 +48,7 @@ namespace grid
 
       u_int pair_idx;
       u_int index;
+      cell_fn_t fn;
 
       bool isCancelled;
       bool isOnStrangulationPath;
@@ -84,7 +85,6 @@ namespace grid
   public:
     rect_t        m_rect;
     rect_t        m_ext_rect;
-    cp_fn_list_t  m_cp_fns;
 
     // call these functions only at the highest levels
     void simplify_un_simplify(double simplification_treshold );

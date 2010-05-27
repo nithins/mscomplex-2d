@@ -174,6 +174,7 @@ namespace grid
     dest_cp->isBoundryCancelable      = cp.isBoundryCancelable;
     dest_cp->isOnStrangulationPath    = cp.isOnStrangulationPath;
     dest_cp->cellid                   = cp.cellid;
+    dest_cp->fn                       = cp.fn;
 
     msc.m_id_cp_map[dest_cp->cellid]  = msc.m_cps.size();
     msc.m_cps.push_back(dest_cp);
@@ -225,7 +226,6 @@ namespace grid
           continue;
 
         shallow_replicate_cp(*out_msc,*src_cp);
-        out_msc->m_cp_fns.push_back(msc->m_cp_fns[j]);
 
       }
     }
@@ -386,13 +386,11 @@ namespace grid
         if(!src_in_msc)
         {
           shallow_replicate_cp(*msc,*src_cp);
-          msc->m_cp_fns.push_back(m_cp_fns[j]);
         }
 
         if(!src_pair_in_msc)
         {
           shallow_replicate_cp(*msc,*src_pair_cp);
-          msc->m_cp_fns.push_back(m_cp_fns[src_cp->pair_idx]);
         }
 
         uint dest_cp_idx = msc->m_id_cp_map[src_cp->cellid];
@@ -428,7 +426,6 @@ namespace grid
             if(msc->m_id_cp_map.count(src_conn_cp->cellid) == 0)
             {
               shallow_replicate_cp(*msc,*src_conn_cp);
-              msc->m_cp_fns.push_back(m_cp_fns[*it]);
             }
 
             dest_acdc[k]->insert(msc->m_id_cp_map[src_conn_cp->cellid]);
@@ -494,10 +491,10 @@ namespace grid
 
     bool operator()(const canc_pair_idx_t & p1, const canc_pair_idx_t &p2)
     {
-      cell_fn_t f1 = m_msc->m_cp_fns[p1.first];
-      cell_fn_t f2 = m_msc->m_cp_fns[p1.second];
-      cell_fn_t f3 = m_msc->m_cp_fns[p2.first];
-      cell_fn_t f4 = m_msc->m_cp_fns[p2.second];
+      cell_fn_t f1 = m_msc->m_cps[p1.first]->fn;
+      cell_fn_t f2 = m_msc->m_cps[p1.second]->fn;
+      cell_fn_t f3 = m_msc->m_cps[p2.first]->fn;
+      cell_fn_t f4 = m_msc->m_cps[p2.second]->fn;
 
       cell_fn_t d1 = std::abs(f2-f1);
       cell_fn_t d2 = std::abs(f4-f3);
@@ -565,9 +562,9 @@ namespace grid
         }
       }
 
-      max_val = std::max(max_val,m_cp_fns[i]);
+      max_val = std::max(max_val,m_cps[i]->fn);
 
-      min_val = std::min(min_val,m_cp_fns[i]);
+      min_val = std::min(min_val,m_cps[i]->fn);
 
       for(const_conn_iter_t it = cp->des.begin();it != cp->des.end() ;++it)
       {
@@ -595,7 +592,7 @@ namespace grid
       critpt_t * cp1 = m_cps[v1];
       critpt_t * cp2 = m_cps[v2];
 
-      cell_fn_t persistence = std::abs(m_cp_fns[v1]-m_cp_fns[v2]);
+      cell_fn_t persistence = std::abs(m_cps[v1]->fn-m_cps[v2]->fn);
 
       if((double)persistence/(double)max_persistence > simplification_treshold)
         break;
@@ -778,6 +775,7 @@ namespace boost
       ar & c.isBoundryCancelable;
       ar & c.isCancelled;
       ar & c.isOnStrangulationPath;
+      ar & c.fn;
       ar & c.pair_idx;
     }
 
@@ -787,7 +785,6 @@ namespace boost
     {
       ar & g.m_rect;
       ar & g.m_ext_rect;
-      ar & g.m_cp_fns;
       ar & g.m_id_cp_map;
       ar & g.m_cps;
     }

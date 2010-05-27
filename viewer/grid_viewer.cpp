@@ -124,7 +124,7 @@ namespace grid
 
       ((std::ostream&)ss)<<c;
 
-      double x = c[0],y = dp->msgraph->m_cp_fns[i],z=c[1];
+      double x = c[0],y = dp->msgraph->m_cps[i]->fn,z=c[1];
 
       if(dp->msgraph->m_cps[i]->isBoundryCancelable)
       {

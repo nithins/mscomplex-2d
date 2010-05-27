@@ -1373,11 +1373,10 @@ namespace grid
     {
       critpt_t * cp             = new critpt_t;
       cp->cellid                = m_critical_cells[i];
+      cp->fn                    = get_cell_fn(m_critical_cells[i]);
       msgraph->m_id_cp_map.insert ( std::make_pair ( m_critical_cells[i],i ) );
 
       msgraph->m_cps.push_back(cp);
-
-      msgraph->m_cp_fns.push_back(get_cell_fn(cp->cellid));
     }
 
     for (uint i = 0 ; i <m_critical_cells.size(); ++i)
@@ -1998,11 +1997,10 @@ namespace grid
     {
       critpt_t * cp             = new critpt_t;
       cp->cellid                = m_critical_cells[i];
+      cp->fn                    = get_cell_fn(m_critical_cells[i]);
       msgraph->m_id_cp_map.insert ( std::make_pair ( m_critical_cells[i],i ) );
 
       msgraph->m_cps.push_back(cp);
-
-      msgraph->m_cp_fns.push_back(get_cell_fn(cp->cellid));
     }
 
     for (uint i = 0 ; i <m_critical_cells.size(); ++i)
