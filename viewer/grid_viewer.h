@@ -3,65 +3,69 @@
 
 #include <QGLViewer/qglviewer.h>
 
-typedef unsigned char uchar;
-typedef unsigned int  uint;
-
-class GridDataPiece ;
-
 namespace glutils
 {
   class renderable_t;
 }
 
-class grid_piece_rendata
+namespace grid
 {
-public:
 
-  GridDataPiece * dp;
+  typedef unsigned char uchar;
+  typedef unsigned int  uint;
 
-  // set externally to control what is rendered
-  bool m_bShowSurface;
-  bool m_bShowCps;
-  bool m_bShowCpLabels;
-  bool m_bShowMsGraph;
-  bool m_bShowGrad;
-  bool m_bShowCancCps;
-  bool m_bShowCancMsGraph;
+  class datapiece_t ;
 
-  glutils::renderable_t  *ren_surf;
-  glutils::renderable_t  *ren_grad[2];
-  glutils::renderable_t  *ren_cp_labels[3];
-  glutils::renderable_t  *ren_cp[3];
-  glutils::renderable_t  *ren_cp_conns[2];
-  glutils::renderable_t  *ren_canc_cp_labels[3];
-  glutils::renderable_t  *ren_canc_cp[3];
-  glutils::renderable_t  *ren_canc_cp_conns[2];
+  class grid_piece_rendata
+  {
+  public:
 
-  void create_cp_rens();
-  void create_grad_rens();
-  void create_surf_ren();
-  void render() const ;
+    datapiece_t * dp;
 
-  grid_piece_rendata(GridDataPiece *);
-};
+    // set externally to control what is rendered
+    bool m_bShowSurface;
+    bool m_bShowCps;
+    bool m_bShowCpLabels;
+    bool m_bShowMsGraph;
+    bool m_bShowGrad;
+    bool m_bShowCancCps;
+    bool m_bShowCancMsGraph;
 
-class grid_glviewer : public QGLViewer
-{
-public:
+    glutils::renderable_t  *ren_surf;
+    glutils::renderable_t  *ren_grad[2];
+    glutils::renderable_t  *ren_cp_labels[3];
+    glutils::renderable_t  *ren_cp[3];
+    glutils::renderable_t  *ren_cp_conns[2];
+    glutils::renderable_t  *ren_canc_cp_labels[3];
+    glutils::renderable_t  *ren_canc_cp[3];
+    glutils::renderable_t  *ren_canc_cp_conns[2];
 
-  std::vector<grid_piece_rendata * >  m_grid_piece_rens;
+    void create_cp_rens();
+    void create_grad_rens();
+    void create_surf_ren();
+    void render() const ;
 
-  uint              m_size_x;
-  uint              m_size_y;
+    grid_piece_rendata(datapiece_t *);
+  };
 
-public:
-  grid_glviewer(std::vector<GridDataPiece *> * p ,
-                uint size_x,uint size_y);
-  ~grid_glviewer();
+  class grid_glviewer : public QGLViewer
+  {
+  public:
 
-protected :
-  virtual void draw();
+    std::vector<grid_piece_rendata * >  m_grid_piece_rens;
+
+    uint              m_size_x;
+    uint              m_size_y;
+
+  public:
+    grid_glviewer(std::vector<datapiece_t *> * p ,
+                  uint size_x,uint size_y);
+    ~grid_glviewer();
+
+  protected :
+      virtual void draw();
   virtual void init();
   virtual QString helpString() const;
 };
+}
 #endif //VIEWER_H_INCLUDED

@@ -24,64 +24,51 @@
 #include <cpputils.h>
 
 #include <discreteMorseDS.h>
-#include <rectangle_complex.h>
+#include <grid.h>
 
-class GridMSComplex;
 
-class grid_types_t
+
+
+namespace grid
 {
-public:
-  typedef int16_t                          cell_coord_t;
-  typedef float                            cell_fn_t;
-  typedef rectangle_complex<cell_coord_t>  rect_cmplx_t;
-  typedef rect_cmplx_t::rectangle_def      rect_t;
-  typedef rect_cmplx_t::point_def          cellid_t;
-  typedef rect_cmplx_t::point_def          rect_point_t;
-  typedef rect_cmplx_t::size_def           rect_size_t;
-  typedef std::vector<cellid_t>            cellid_list_t;
-  typedef unsigned int                     critpt_idx_t;
-  typedef std::vector<critpt_idx_t>        critpt_idx_list_t;
-
-};
-
-
-class GridMSComplex:
-    public MSComplex<grid_types_t::cellid_t>,public grid_types_t
-{
-public:
   typedef std::pair<uint,uint>                        crit_idx_pair_t;
   typedef std::vector<crit_idx_pair_t>                crit_idx_pair_list_t;
-  typedef GridMSComplex                               mscomplex_t;
-  typedef mscomplex_t::critical_point                 critpt_t;
-  typedef mscomplex_t::critical_point::connection_t   conn_t;
-  typedef MSComplex<grid_types_t::cellid_t>::critical_point::disc_t         critpt_disc_t;
+  typedef MSComplex<cellid_t>::critical_point                 critpt_t;
+  typedef MSComplex<cellid_t>::critical_point::connection_t   conn_t;
+  typedef MSComplex<cellid_t>::critical_point::disc_t         critpt_disc_t;
   typedef conn_t::iterator                            conn_iter_t;
   typedef conn_t::const_iterator                      const_conn_iter_t;
   typedef std::vector<cell_fn_t>                      cp_fn_list_t;
 
-  rect_t        m_rect;
-  rect_t        m_ext_rect;
-  cp_fn_list_t  m_cp_fns;
 
-  // call these functions only at the highest levels
-  void simplify_un_simplify(double simplification_treshold );
 
-  void simplify(crit_idx_pair_list_t &,double simplification_treshold);
+  class mscomplex_t: public MSComplex<cellid_t>
+  {
+  public:
+    rect_t        m_rect;
+    rect_t        m_ext_rect;
+    cp_fn_list_t  m_cp_fns;
 
-  void un_simplify(const crit_idx_pair_list_t &);
+    // call these functions only at the highest levels
+    void simplify_un_simplify(double simplification_treshold );
 
-  void clear();
+    void simplify(crit_idx_pair_list_t &,double simplification_treshold);
 
-  static mscomplex_t * merge_up(const mscomplex_t& msc1,const mscomplex_t& msc2);
+    void un_simplify(const crit_idx_pair_list_t &);
 
-  void merge_down(mscomplex_t& msc1,mscomplex_t& msc2);
+    void clear();
 
-  GridMSComplex(rect_t r,rect_t e):m_rect(r),m_ext_rect(e){}
+    static mscomplex_t * merge_up(const mscomplex_t& msc1,const mscomplex_t& msc2);
 
-  GridMSComplex(){}
+    void merge_down(mscomplex_t& msc1,mscomplex_t& msc2);
 
-  void write_discs(const std::string &fn_prefix);
-};
+    mscomplex_t(rect_t r,rect_t e):m_rect(r),m_ext_rect(e){}
+
+    mscomplex_t(){}
+
+    void write_discs(const std::string &fn_prefix);
+  };
+}
 
 
 #include <boost/serialization/array.hpp>
@@ -92,7 +79,7 @@ namespace boost
   namespace serialization
   {
     template<class Archive>
-    void serialize(Archive & ar, GridMSComplex & g, const unsigned int );
+    void serialize(Archive & ar, grid::mscomplex_t & g, const unsigned int );
 
   } // namespace serialization
 }

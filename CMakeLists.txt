@@ -45,7 +45,7 @@ set(dmsc_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/discreteMorseDS.h
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/discreteMorseAlgorithm.h
 
-  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/rectangle_complex.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/grid.h
 
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/prefix_scan.h
   ${CMAKE_CURRENT_SOURCE_DIR}/dmsc/prefix_scan.cpp

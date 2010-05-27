@@ -90,7 +90,7 @@ int main(int ac , char **av)
   if (vm.count("gui"))
     gui = true;
 
-  GridDataManager * gdm = new GridDataManager
+  grid::datamanager_t * gdm = new grid::datamanager_t
       (filename,dim[0],dim[1],
        num_levels,
        single_thread,use_ocl,
@@ -102,7 +102,7 @@ int main(int ac , char **av)
   {
       QApplication application(ac,av);
 
-      grid_viewer_mainwindow gvmw(&gdm->m_pieces,dim[0],dim[1]);
+      grid::grid_viewer_mainwindow gvmw(&gdm->m_pieces,dim[0],dim[1]);
 
       gvmw.setWindowTitle("ms complex vis");
 

@@ -9,63 +9,66 @@
 
 #include <ui_grid_viewer_mainwindow.h>
 
-class grid_glviewer;
-
-class grid_piece_rendata;
-
-class GridDataPiece;
-
-class grid_viewer_mainwindow:
-    public QDialog,
-    public Ui::grid_viewer_mainwindow_Dialog
+namespace grid
 {
 
-public:
+  class grid_glviewer;
 
-  grid_glviewer    *m_viewer;
+  class grid_piece_rendata;
 
-  grid_viewer_mainwindow
-      (std::vector<GridDataPiece *> * p ,uint size_x,uint size_y);
+  class datapiece_t;
 
-  Q_OBJECT
-
-public:
-
-  enum eTreeViewActions
+  class grid_viewer_mainwindow:
+      public QDialog,
+      public Ui::grid_viewer_mainwindow_Dialog
   {
-    TVA_SURF,
-    TVA_CPS,
-    TVA_CPLABELS,
-    TVA_GRAPH,
-    TVA_GRAD,
-    TVA_CANC_CPS,
-    TVA_CANC_GRAPH,
-  };
 
-  void perform_tva_action ( const eTreeViewActions &,const bool & );
-  bool get_tva_state ( const eTreeViewActions & );
+  public:
 
+    grid_glviewer    *m_viewer;
 
-private slots:
-  void on_datapiece_treeView_customContextMenuRequested ( const QPoint &p );
+    grid_viewer_mainwindow
+        (std::vector<datapiece_t *> * p ,uint size_x,uint size_y);
 
-  void show_surf_toggled ( bool state ) {perform_tva_action ( TVA_SURF,state );}
-  void show_cps_toggled ( bool state ) {perform_tva_action ( TVA_CPS,state );}
-  void show_cplabels_toggled ( bool state ) {perform_tva_action ( TVA_CPLABELS,state );}
-  void show_graph_toggled ( bool state ) {perform_tva_action ( TVA_GRAPH,state );}
-  void show_grad_toggled ( bool state ) {perform_tva_action ( TVA_GRAD,state );}
-  void show_canc_cps_toggled ( bool state ) {perform_tva_action ( TVA_CANC_CPS,state );}
-  void show_canc_graph_toggled ( bool state ) {perform_tva_action ( TVA_CANC_GRAPH,state );}
-
-};
-
-class GridTreeModel : public QAbstractItemModel
-{
     Q_OBJECT
 
   public:
 
-  GridTreeModel ( std::vector<grid_piece_rendata *> *, QObject *parent = 0 );
+    enum eTreeViewActions
+    {
+      TVA_SURF,
+      TVA_CPS,
+      TVA_CPLABELS,
+      TVA_GRAPH,
+      TVA_GRAD,
+      TVA_CANC_CPS,
+      TVA_CANC_GRAPH,
+    };
+
+    void perform_tva_action ( const eTreeViewActions &,const bool & );
+    bool get_tva_state ( const eTreeViewActions & );
+
+
+  private slots:
+    void on_datapiece_treeView_customContextMenuRequested ( const QPoint &p );
+
+    void show_surf_toggled ( bool state ) {perform_tva_action ( TVA_SURF,state );}
+    void show_cps_toggled ( bool state ) {perform_tva_action ( TVA_CPS,state );}
+    void show_cplabels_toggled ( bool state ) {perform_tva_action ( TVA_CPLABELS,state );}
+    void show_graph_toggled ( bool state ) {perform_tva_action ( TVA_GRAPH,state );}
+    void show_grad_toggled ( bool state ) {perform_tva_action ( TVA_GRAD,state );}
+    void show_canc_cps_toggled ( bool state ) {perform_tva_action ( TVA_CANC_CPS,state );}
+    void show_canc_graph_toggled ( bool state ) {perform_tva_action ( TVA_CANC_GRAPH,state );}
+
+  };
+
+  class GridTreeModel : public QAbstractItemModel
+  {
+    Q_OBJECT
+
+  public:
+
+    GridTreeModel ( std::vector<grid_piece_rendata *> *, QObject *parent = 0 );
     ~GridTreeModel();
 
     QVariant data ( const QModelIndex &index, int role ) const;
@@ -101,11 +104,11 @@ class GridTreeModel : public QAbstractItemModel
         ( std::vector<grid_piece_rendata *> *);
 
     tree_item *m_tree;
-};
+  };
 
-class RecursiveTreeItemSelectionModel:
-    public QItemSelectionModel
-{
+  class RecursiveTreeItemSelectionModel:
+      public QItemSelectionModel
+  {
     Q_OBJECT
 
   public:
@@ -125,6 +128,7 @@ class RecursiveTreeItemSelectionModel:
                                 QModelIndexList &retlist );
 
     QTreeView *m_pTreeView;
-};
+  };
+}
 
 #endif

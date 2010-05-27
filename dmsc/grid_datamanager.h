@@ -26,110 +26,103 @@
 
 #include <grid_dataset.h>
 
-struct GridDataPiece
-{
-  typedef GridDataset::cell_fn_t cell_fn_t;
-  typedef GridDataset::mscomplex_t mscomplex_t;
-  typedef GridDataset::cell_coord_t cell_coord_t;
-  typedef GridDataset::rect_t rect_t;
-  typedef GridDataset::rect_size_t rect_size_t;
-  typedef GridDataset::cellid_t cellid_t;
-  typedef GridDataset::critpt_conn_t conn_t;
-
-  GridDataset *dataset;
-  mscomplex_t *msgraph;
-
-  uint level;
-
-  uint m_pieceno;
-
-  GridDataPiece (uint l);
-
-  std::string label();
-};
-
 namespace boost
 {
   class thread;
 }
 
-class GridDataManager
+namespace grid
 {
+  class  mscomplex_t;
 
-  typedef GridDataset::rect_t rect_t;
-  typedef GridDataset::cell_coord_t cell_coord_t;
-  typedef GridDataset::cellid_t cellid_t;
-  typedef GridDataset::rect_point_t rect_point_t;
-  typedef GridDataset::rect_size_t rect_size_t;
-  typedef std::vector<GridDataPiece *> pieces_list_t;
+  struct datapiece_t
+  {
+    dataset_t   *dataset;
+    mscomplex_t *msgraph;
 
-public:
+    uint level;
 
-  pieces_list_t                m_pieces;
+    uint m_pieceno;
 
-  std::string                  m_filename;
-  u_int                        m_size_x;
-  u_int                        m_size_y;
-  u_int                        m_num_levels;
-  double                       m_simp_tresh;
-  bool                         m_single_threaded_mode;
-  bool                         m_use_ocl;
-  bool                         m_compute_out_of_core;
+    datapiece_t (uint l);
 
-  boost::thread **             m_threads;
-
-public:
-
-  uint num_parallel;
+    std::string label();
+  };
 
 
-  GridDataManager
-      ( std::string filename,
-        u_int        size_x,
-        u_int        size_y,
-        u_int        num_levels,
-        bool         threaded_mode,
-        bool         use_ocl,
-        double       simp_tresh,
-        bool         compute_out_of_core,
-        uint         np);
 
-  virtual ~GridDataManager ();
+  class datamanager_t
+  {
+    typedef std::vector<datapiece_t *> pieces_list_t;
 
-  void createPieces_quadtree(rect_t r,rect_t e,u_int level );
+  public:
 
-  void createDataPieces();
+    pieces_list_t                m_pieces;
 
-  void readDataAndInit(std::ifstream &data_stream,GridDataset::cell_fn_t *,uint start_offset);
+    std::string                  m_filename;
+    u_int                        m_size_x;
+    u_int                        m_size_y;
+    u_int                        m_num_levels;
+    double                       m_simp_tresh;
+    bool                         m_single_threaded_mode;
+    bool                         m_use_ocl;
+    bool                         m_compute_out_of_core;
 
-  uint getMaxDataBufItems();
+    boost::thread **             m_threads;
 
-  void waitForThreadsInRange(uint,uint);
+  public:
 
-  void computeMsGraph ( GridDataPiece  * );
+    uint num_parallel;
 
-  void computeMsGraphInRange(uint ,uint );
 
-  void finalMergeDownPiecesInRange(uint start,uint end);
+    datamanager_t
+        ( std::string filename,
+          u_int        size_x,
+          u_int        size_y,
+          u_int        num_levels,
+          bool         threaded_mode,
+          bool         use_ocl,
+          double       simp_tresh,
+          bool         compute_out_of_core,
+          uint         np);
 
-  void collectManifold( GridDataPiece  * );
+    virtual ~datamanager_t ();
 
-  void collectManifoldsInRange(uint start,uint end);
+    void createPieces_quadtree(rect_t r,rect_t e,u_int level );
 
-  void writeManifoldsInRange(uint start,uint end);
+    void createDataPieces();
 
-  void computeSubdomainMsgraphs ();
+    void readDataAndInit(std::ifstream &data_stream,cell_fn_t *,uint start_offset);
 
-  void mergePiecesUp( );
+    uint getMaxDataBufItems();
 
-  void mergePiecesDown( );
+    void waitForThreadsInRange(uint,uint);
 
-  void collectSubdomainManifolds( );
+    void computeMsGraph ( datapiece_t  * );
 
-  void logAllConnections(const std::string &prefix);
+    void computeMsGraphInRange(uint ,uint );
 
-  void logAllCancelPairs(const std::string &prefix);
+    void finalMergeDownPiecesInRange(uint start,uint end);
 
-};
+    void collectManifold( datapiece_t  * );
+
+    void collectManifoldsInRange(uint start,uint end);
+
+    void writeManifoldsInRange(uint start,uint end);
+
+    void computeSubdomainMsgraphs ();
+
+    void mergePiecesUp( );
+
+    void mergePiecesDown( );
+
+    void collectSubdomainManifolds( );
+
+    void logAllConnections(const std::string &prefix);
+
+    void logAllCancelPairs(const std::string &prefix);
+
+  };
+}
 
 #endif

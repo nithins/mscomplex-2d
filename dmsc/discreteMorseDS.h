@@ -46,6 +46,7 @@ public:
     id_t cellid;
 
     u_int pair_idx;
+    u_int index;
 
     bool isCancelled;
     bool isOnStrangulationPath;
