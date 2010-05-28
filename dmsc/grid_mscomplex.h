@@ -114,6 +114,7 @@ namespace grid
   typedef critpt_t::disc_t                     critpt_disc_t;
   typedef critpt_t::conn_set_t::iterator       conn_iter_t;
   typedef critpt_t::conn_set_t::const_iterator const_conn_iter_t;
+  typedef critpt_t::disc_contrib_t             disc_contrib_t;
 
   inline void order_pr_by_cp_index(mscomplex_t *msc,uint_pair_t &e)
   {

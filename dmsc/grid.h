@@ -111,10 +111,8 @@ namespace grid
               const point_t &p2
               )
       {
-        (*this)[0] = range_t(p1[0],p2[0]);
-        (*this)[1] = range_t(p1[1],p2[1]);
-        (*this)[2] = range_t(p1[2],p2[2]);
-
+        for(uint i = 0 ; i < gc_grid_dim; ++i)
+          (*this)[i] = range_t(p1[i],p2[i]);
       }
 
       rectangle_t(){}

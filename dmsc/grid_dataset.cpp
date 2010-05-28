@@ -1227,9 +1227,15 @@ namespace grid
     return 0;
   }
 
-  void connectCps (mscomplex_t *msgraph,uint cp1_ind,uint cp2_ind)
+  void connectCps (mscomplex_t *msgraph,cellid_t c1,cellid_t c2)
   {
-    msgraph->connect_cps(uint_pair_t(cp1_ind,cp2_ind));
+    if(msgraph->m_rect.contains(c1) && msgraph->m_rect.contains(c2))
+      msgraph->connect_cps(c1,c2);
+  }
+
+  void connectCps (mscomplex_t *msgraph,uint i1,uint i2)
+  {
+    connectCps(msgraph,msgraph->m_cps[i1]->cellid,msgraph->m_cps[i2]->cellid);
   }
 
   void dataset_t::writeout_connectivity_ocl(mscomplex_t *msgraph)
@@ -1264,11 +1270,6 @@ namespace grid
       }
     }
 
-  }
-
-  void connectCps (mscomplex_t *msgraph,cellid_t c1,cellid_t c2)
-  {
-    msgraph->connect_cps(c1,c2);
   }
 
   inline bool lowestPairableCoFacet

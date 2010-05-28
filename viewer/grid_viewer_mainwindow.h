@@ -1,134 +1,168 @@
 #ifndef GRID_VIEWER_MAINWINDOW_INCLUDED
 #define GRID_VIEWER_MAINWINDOW_INCLUDED
 
+#include <grid.h>
+
 #include <QDialog>
 #include <QAbstractItemModel>
 #include <QModelIndex>
 #include <QVariant>
 #include <QItemSelectionModel>
+#include <QTreeView>
+#include <QSortFilterProxyModel>
+#include <QTimer>
+
+#include <QGLViewer/qglviewer.h>
 
 #include <ui_grid_viewer_mainwindow.h>
+#include <boost/any.hpp>
+
+class configurable_t;
 
 namespace grid
 {
 
-  class grid_glviewer;
 
-  class grid_piece_rendata;
+  class grid_viewer_t;
 
-  class datapiece_t;
+  class data_manager_t;
 
-  class grid_viewer_mainwindow:
+  class glviewer_t : public QGLViewer
+  {
+
+  public:
+
+    grid_viewer_t *m_ren;
+
+    bool m_is_recording;
+
+    glviewer_t(data_manager_t * p);
+
+    ~glviewer_t();
+
+  protected:
+
+    virtual void draw();
+    virtual void init();
+    virtual QString helpString() const;
+    virtual void keyPressEvent(QKeyEvent *e);
+
+  };
+
+  class configurable_item_model;
+
+  class viewer_mainwindow:
       public QDialog,
       public Ui::grid_viewer_mainwindow_Dialog
   {
 
-  public:
-
-    grid_glviewer    *m_viewer;
-
-    grid_viewer_mainwindow
-        (std::vector<datapiece_t *> * p ,uint size_x,uint size_y);
-
-    Q_OBJECT
+  Q_OBJECT
 
   public:
 
-    enum eTreeViewActions
-    {
-      TVA_SURF,
-      TVA_CPS,
-      TVA_CPLABELS,
-      TVA_GRAPH,
-      TVA_GRAD,
-      TVA_CANC_CPS,
-      TVA_CANC_GRAPH,
-    };
+    glviewer_t              *m_viewer;
+    uint                     m_active_otp_idx;
 
-    void perform_tva_action ( const eTreeViewActions &,const bool & );
-    bool get_tva_state ( const eTreeViewActions & );
+    QSortFilterProxyModel   *m_cp_model_proxy;
+    configurable_item_model *m_cp_model;
+    configurable_item_model *m_otp_model;
+    QTimer                  *m_clear_roi_aabb_timer;
 
+  public:
+
+    viewer_mainwindow(data_manager_t *gdm);
+
+    ~viewer_mainwindow();
+
+    void update_roi_box(double l,double u,uint dim);
+
+
+  public:
+
+    virtual void showEvent ( QShowEvent * );
 
   private slots:
-    void on_datapiece_treeView_customContextMenuRequested ( const QPoint &p );
+    void on_datapiece_view_customContextMenuRequested ( const QPoint &p );
 
-    void show_surf_toggled ( bool state ) {perform_tva_action ( TVA_SURF,state );}
-    void show_cps_toggled ( bool state ) {perform_tva_action ( TVA_CPS,state );}
-    void show_cplabels_toggled ( bool state ) {perform_tva_action ( TVA_CPLABELS,state );}
-    void show_graph_toggled ( bool state ) {perform_tva_action ( TVA_GRAPH,state );}
-    void show_grad_toggled ( bool state ) {perform_tva_action ( TVA_GRAD,state );}
-    void show_canc_cps_toggled ( bool state ) {perform_tva_action ( TVA_CANC_CPS,state );}
-    void show_canc_graph_toggled ( bool state ) {perform_tva_action ( TVA_CANC_GRAPH,state );}
+    void on_critpt_view_customContextMenuRequested ( const QPoint &p );
 
+    void on_datapiece_view_activated ( const QModelIndex & index  );
+
+    void on_xroi_spanslider_spanChanged(int l , int u );
+
+    void on_yroi_spanslider_spanChanged(int l , int u );
+
+    void on_zroi_spanslider_spanChanged(int l , int u );
+
+    void on_update_roi_pushButton_clicked(bool);
+
+    void on_center_to_roi_checkBox_clicked(bool);
+
+  private slots:
+    void clear_roi_aabb();
   };
 
-  class GridTreeModel : public QAbstractItemModel
+  void configurable_ctx_menu
+      (configurable_t *c,
+       const QModelIndexList & l,
+       const QPoint &p);
+
+  class configurable_ctx_menu_sig_collector:public QObject
   {
     Q_OBJECT
 
   public:
 
-    GridTreeModel ( std::vector<grid_piece_rendata *> *, QObject *parent = 0 );
-    ~GridTreeModel();
+    boost::any              m_val;
+    int                     m_col;
+    configurable_t *        m_conf;
+    const QModelIndexList & m_rows;
+
+    configurable_ctx_menu_sig_collector
+        (configurable_t * conf,
+         const boost::any & val,
+         const int & col,
+         const QModelIndexList & rows,
+         QObject *par):
+        m_conf(conf),
+        m_val(val),
+        m_col(col),
+        m_rows(rows)
+    {setParent(par);}
+
+  private slots:
+    void triggered(bool state);
+  };
+
+  class configurable_item_model : public QAbstractTableModel
+  {
+    Q_OBJECT
+
+  public:
+
+    configurable_item_model ( configurable_t *conf,QObject *parent = 0 ):
+        QAbstractTableModel ( parent ),m_conf(conf){}
 
     QVariant data ( const QModelIndex &index, int role ) const;
 
-    Qt::ItemFlags flags ( const QModelIndex &index ) const;
-
     QVariant headerData ( int section, Qt::Orientation orientation,
                           int role = Qt::DisplayRole ) const;
-
-    QModelIndex index ( int row, int column,
-                        const QModelIndex &parent = QModelIndex() ) const;
-
-    QModelIndex parent ( const QModelIndex &index ) const;
 
     int rowCount ( const QModelIndex &parent = QModelIndex() ) const;
 
     int columnCount ( const QModelIndex &parent = QModelIndex() ) const;
 
-    struct tree_item
-    {
-      std::vector<tree_item *>               children;
-      grid_piece_rendata                   * node;
-      tree_item                            * parent;
+    void reset_configurable(configurable_t *conf);
 
-      tree_item ( grid_piece_rendata * _node , tree_item * par );
-      tree_item();
-      int row();
-    };
-
+    void force_reset(){reset();}
 
   private:
-    void setupModelData
-        ( std::vector<grid_piece_rendata *> *);
 
-    tree_item *m_tree;
-  };
+    configurable_t * m_conf;
 
-  class RecursiveTreeItemSelectionModel:
-      public QItemSelectionModel
-  {
-    Q_OBJECT
-
-  public:
-    RecursiveTreeItemSelectionModel ( QAbstractItemModel * m,QTreeView * tv) :
-        QItemSelectionModel ( m),m_pTreeView ( tv) {}
-
-  public slots:
-
-    virtual void select ( const QModelIndex &index,
-                          QItemSelectionModel::SelectionFlags command );
-
-    virtual void select ( const QItemSelection &selection,
-                          QItemSelectionModel::SelectionFlags command );
-  private:
-
-    void collect_all_children ( const QModelIndex &index,
-                                QModelIndexList &retlist );
-
-    QTreeView *m_pTreeView;
   };
 }
+
+
 
 #endif

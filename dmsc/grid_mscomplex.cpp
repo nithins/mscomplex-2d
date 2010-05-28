@@ -188,21 +188,38 @@ namespace grid
     os<<"}";
   }
 
+  void print_cp_contrib(std::ostream & os,const mscomplex_t &msc,
+                            const disc_contrib_t &contrib)
+  {
+    os<<"{ ";
+    for(disc_contrib_t::const_iterator it = contrib.begin(); it != contrib.end(); ++it)
+    {
+      if(msc.m_cps[*it]->is_paired)
+        os<<"*";
+      os<<msc.m_cps[*it]->cellid;
+      os<<", ";
+    }
+    os<<"}";
+  }
+
+
 
   void mscomplex_t::print_connections(std::ostream & os)
   {
-    const char *dir_txt[] = {"des","asc"};
+    const char *conn_dir_txt[] = {"des","asc"};
+
+    const char *contrib_dir_txt[] = {"des_contrib","asc_contrib"};
 
     for(uint i = 0 ; i < m_cps.size();++i)
     {
       if(m_cps[i]->is_paired)
-        continue;
+        os<<"*";
 
       os<<"cellid = "<<m_cps[i]->cellid<<"\n";
 
       for(uint dir = 0 ; dir <2 ;++dir)
       {
-        os<<dir_txt[dir]<<"=";
+        os<<conn_dir_txt[dir]<<"=";
         print_cp_connections(os,*this,m_cps[i]->conn[dir]);
         os<<'\n';
       }
@@ -534,8 +551,8 @@ namespace grid
       cellid_t c1 = m_msc->m_cps[p1[0]]->cellid;
       cellid_t c2 = m_msc->m_cps[p1[1]]->cellid;
 
-      cellid_t c3 = m_msc->m_cps[p1[0]]->cellid;
-      cellid_t c4 = m_msc->m_cps[p1[1]]->cellid;
+      cellid_t c3 = m_msc->m_cps[p2[0]]->cellid;
+      cellid_t c4 = m_msc->m_cps[p2[1]]->cellid;
 
       d1 = (c1[0]-c2[0])*(c1[0]-c2[0]) + (c1[1]-c2[1])*(c1[1]-c2[1]);
       d2 = (c3[0]-c4[0])*(c3[0]-c4[0]) + (c3[1]-c4[1])*(c3[1]-c4[1]);
@@ -671,6 +688,9 @@ namespace grid
   {
     for(uint i = 0 ; i < m_cps.size(); ++i)
     {
+      if(!m_ext_rect.contains(m_cps[i]->cellid))
+        continue;
+
       if(!m_cps[i]->is_paired)
       {
         for(uint dir = 0 ; dir < 2 ;++dir)

@@ -40,10 +40,10 @@ namespace grid
 
   using namespace std;
 
-  void datamanager_t::createDataPieces ()
+  void data_manager_t::createDataPieces ()
   {
-    rect_t r(cellid_t(0,0),cellid_t(2*(m_size_x-1),2*(m_size_y-1)));
-    rect_t e(cellid_t(0,0),cellid_t(2*(m_size_x-1),2*(m_size_y-1)));
+    rect_t r(cellid_t(0,0),(m_size-cellid_t::one)*2);
+    rect_t e(cellid_t(0,0),(m_size-cellid_t::one)*2);
 
     createPieces_quadtree(r,e,m_num_levels);
     return;
@@ -52,7 +52,7 @@ namespace grid
   const unsigned char split_axes = 1;
   const unsigned char scan_axes  = (split_axes+1)%2;
 
-  void datamanager_t::createPieces_quadtree(rect_t r,rect_t e,u_int level )
+  void data_manager_t::createPieces_quadtree(rect_t r,rect_t e,u_int level )
   {
     if(level == 0)
     {
@@ -120,7 +120,7 @@ namespace grid
 
   }
 
-  void datamanager_t::computeMsGraph( datapiece_t *dp )
+  void data_manager_t::computeMsGraph( datapiece_t *dp )
   {
     if(m_use_ocl != true)
     {
@@ -214,7 +214,7 @@ namespace grid
   }
 
 
-  void datamanager_t::computeMsGraphInRange(uint start,uint end )
+  void data_manager_t::computeMsGraphInRange(uint start,uint end )
   {
     _LOG ( "Begin Gradient/ conn work for pieces from "<<start<<" to "<<end );
 
@@ -233,7 +233,7 @@ namespace grid
 
 
         m_threads[i-start] = new boost::thread
-                             ( boost::bind ( &datamanager_t::computeMsGraph,this,dp ) );
+                             ( boost::bind ( &data_manager_t::computeMsGraph,this,dp ) );
       }
       else
       {
@@ -243,7 +243,7 @@ namespace grid
     }
   }
 
-  void datamanager_t::waitForThreadsInRange(uint start,uint end )
+  void data_manager_t::waitForThreadsInRange(uint start,uint end )
   {
     if(m_single_threaded_mode == false)
     {
@@ -261,7 +261,7 @@ namespace grid
     }
   }
 
-  void datamanager_t::mergePiecesUp( )
+  void data_manager_t::mergePiecesUp( )
   {
     uint num_leafs = pow(2,m_num_levels);
 
@@ -311,7 +311,7 @@ namespace grid
 
   }
 
-  void datamanager_t::mergePiecesDown()
+  void data_manager_t::mergePiecesDown()
   {
     uint num_graphs = (0x01<<(m_num_levels+1))-1;
 
@@ -362,7 +362,7 @@ namespace grid
     return;
   }
 
-  void datamanager_t::finalMergeDownPiecesInRange(uint start,uint end)
+  void data_manager_t::finalMergeDownPiecesInRange(uint start,uint end)
   {
 
     uint num_subdomains =  ((0x01)<<m_num_levels);
@@ -400,7 +400,7 @@ namespace grid
     }
   }
 
-  void datamanager_t::collectManifold( datapiece_t  * dp)
+  void data_manager_t::collectManifold( datapiece_t  * dp)
   {
 
     if(m_use_ocl == false)
@@ -429,7 +429,7 @@ namespace grid
     }
   }
 
-  void datamanager_t::collectManifoldsInRange(uint start,uint end)
+  void data_manager_t::collectManifoldsInRange(uint start,uint end)
   {
 
     uint threadno = 0;
@@ -446,7 +446,7 @@ namespace grid
         _LOG("Kicking off collect manifolds "<<j );
 
         m_threads[threadno++] = new boost::thread
-                                ( boost::bind ( &datamanager_t::collectManifold,this,dp ));
+                                ( boost::bind ( &data_manager_t::collectManifold,this,dp ));
       }
       else
       {
@@ -459,7 +459,7 @@ namespace grid
   }
 
 
-  void datamanager_t::collectSubdomainManifolds( )
+  void data_manager_t::collectSubdomainManifolds( )
   {
 
     std::ifstream data_stream;
@@ -497,7 +497,7 @@ namespace grid
   }
 
 
-  void datamanager_t::computeSubdomainMsgraphs ( )
+  void data_manager_t::computeSubdomainMsgraphs ( )
   {
 
     std::ifstream data_stream;
@@ -534,7 +534,7 @@ namespace grid
     data_stream.close();
   }
 
-  void datamanager_t::readDataAndInit
+  void data_manager_t::readDataAndInit
       (std::ifstream &data_stream,cell_fn_t *buffer,uint start_offset)
   {
 
@@ -542,7 +542,7 @@ namespace grid
 
     int num_pc_per_buf = std::min(num_parallel,num_subdomains);
 
-    rect_size_t domain_sz(m_size_x,m_size_y);
+    rect_size_t domain_sz(m_size);
 
     if(start_offset == 0)
       data_stream.open(m_filename.c_str(),fstream::in|fstream::binary );
@@ -581,9 +581,9 @@ namespace grid
 
   }
 
-  uint datamanager_t::getMaxDataBufItems()
+  uint data_manager_t::getMaxDataBufItems()
   {
-    rect_size_t domain_sz(m_size_x,m_size_y);
+    rect_size_t domain_sz(m_size);
 
     uint num_subdomains =  ((0x01)<<m_num_levels);
 
@@ -598,10 +598,9 @@ namespace grid
     return buf_ct;
   }
 
-  datamanager_t::datamanager_t
+  data_manager_t::data_manager_t
       ( std::string filename,
-        u_int        size_x,
-        u_int        size_y,
+        cellid_t    size,
         u_int        num_levels,
         bool         single_threaded_mode,
         bool         use_ocl,
@@ -609,8 +608,7 @@ namespace grid
         bool         compute_out_of_core,
         uint         np):
       m_filename(filename),
-      m_size_x(size_x),
-      m_size_y(size_y),
+      m_size(size),
       m_num_levels(num_levels),
       m_single_threaded_mode(single_threaded_mode),
       m_use_ocl(use_ocl),
@@ -678,7 +676,7 @@ namespace grid
     delete []m_threads;
   }
 
-  void datamanager_t ::logAllConnections(const std::string &prefix)
+  void data_manager_t ::logAllConnections(const std::string &prefix)
   {
 
     for(uint i = 0 ; i <m_pieces.size();++i)
@@ -705,11 +703,11 @@ namespace grid
 
   }
 
-  void datamanager_t::logAllCancelPairs(const std::string &prefix)
+  void data_manager_t::logAllCancelPairs(const std::string &prefix)
   {
   }
 
-  datamanager_t::~datamanager_t()
+  data_manager_t::~data_manager_t()
   {
   }
 

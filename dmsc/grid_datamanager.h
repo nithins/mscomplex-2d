@@ -51,7 +51,7 @@ namespace grid
 
 
 
-  class datamanager_t
+  class data_manager_t
   {
     typedef std::vector<datapiece_t *> pieces_list_t;
 
@@ -60,8 +60,8 @@ namespace grid
     pieces_list_t                m_pieces;
 
     std::string                  m_filename;
-    u_int                        m_size_x;
-    u_int                        m_size_y;
+    cellid_t                     m_size;
+
     u_int                        m_num_levels;
     double                       m_simp_tresh;
     bool                         m_single_threaded_mode;
@@ -75,10 +75,9 @@ namespace grid
     uint num_parallel;
 
 
-    datamanager_t
-        ( std::string filename,
-          u_int        size_x,
-          u_int        size_y,
+    data_manager_t
+        ( std::string  filename,
+          cellid_t     size,
           u_int        num_levels,
           bool         threaded_mode,
           bool         use_ocl,
@@ -86,7 +85,7 @@ namespace grid
           bool         compute_out_of_core,
           uint         np);
 
-    virtual ~datamanager_t ();
+    virtual ~data_manager_t ();
 
     void createPieces_quadtree(rect_t r,rect_t e,u_int level );
 

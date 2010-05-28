@@ -1,332 +1,379 @@
 #include <QMenu>
 #include <QTreeView>
+#include <QColorDialog>
+#include <QDebug>
+#include <QKeyEvent>
 
+#include <boost/typeof/typeof.hpp>
 
 #include <grid_viewer.h>
 #include <grid_viewer_mainwindow.h>
 #include <grid_datamanager.h>
 
+const int g_roi_show_aabb_time_msec = 5*1000;
+
 namespace grid
 {
 
-
-  bool &get_tva_item_flag_ref
-      (const grid_viewer_mainwindow::eTreeViewActions &action ,
-       grid_piece_rendata *gp_rd )
+  void glviewer_t::draw()
   {
-    switch (action)
-    {
-    case grid_viewer_mainwindow::TVA_SURF: return gp_rd->m_bShowSurface;
-    case grid_viewer_mainwindow::TVA_CPS: return gp_rd->m_bShowCps;
-    case grid_viewer_mainwindow::TVA_CPLABELS: return gp_rd->m_bShowCpLabels;
-    case grid_viewer_mainwindow::TVA_GRAPH:return gp_rd->m_bShowMsGraph;
-    case grid_viewer_mainwindow::TVA_GRAD:return gp_rd->m_bShowGrad;
-    case grid_viewer_mainwindow::TVA_CANC_CPS:return gp_rd->m_bShowCancCps;
-    case grid_viewer_mainwindow::TVA_CANC_GRAPH:return gp_rd->m_bShowCancMsGraph;
-    }
-
-    throw std::invalid_argument("undefined tva action");
-
-    return gp_rd->m_bShowSurface;
+    m_ren->render();
   }
 
-  bool grid_viewer_mainwindow::get_tva_state ( const eTreeViewActions &action )
+  void glviewer_t::init()
   {
+    setSnapshotFormat("PNG");
+    setSnapshotQuality(100);
 
-    uint num_checked_items = 0;
-    uint num_unchecked_items = 0;
+    m_ren->init();
+  }
 
-    QModelIndexList indexes = datapiece_treeView->selectionModel()->selectedIndexes();
+  glviewer_t::glviewer_t(data_manager_t * gdm):m_is_recording(false)
+  {
+    m_ren = new grid_viewer_t(gdm);
+  }
 
-    for ( QModelIndexList::iterator ind_it = indexes.begin();ind_it != indexes.end(); ++ind_it )
+  glviewer_t::~glviewer_t()
+  {
+    delete m_ren;
+  }
+
+  void glviewer_t::keyPressEvent(QKeyEvent *e)
+  {
+    const Qt::KeyboardModifiers modifiers = e->modifiers();
+
+    bool handled = false;
+    if ((e->key()==Qt::Key_R) && (modifiers==Qt::ControlModifier))
     {
-      GridTreeModel::tree_item *item = static_cast<GridTreeModel::tree_item*> ( ( *ind_it ).internalPointer() );
+      m_is_recording = !m_is_recording;
 
-      if ( get_tva_item_flag_ref(action,item->node) ) ++num_checked_items;
-      else ++num_unchecked_items;
+      if(m_is_recording)
+        connect(this, SIGNAL(drawFinished(bool)),this, SLOT(saveSnapshot(bool)));
+      else
+        disconnect(this, SIGNAL(drawFinished(bool)),this, SLOT(saveSnapshot(bool)));
+
+      std::cout<<"Recording state::"<<m_is_recording<<"\n";
+
+      handled = true;
+    }
+    else if ((e->key()==Qt::Key_B) && (modifiers==Qt::ControlModifier))
+    {
+      m_ren->m_bShowRoiBB = !m_ren->m_bShowRoiBB;
+      handled = true;
     }
 
-    if ( num_checked_items > num_unchecked_items )
-      return true;
+    if (handled)
+      updateGL();
     else
-      return false;
+      QGLViewer::keyPressEvent(e);
+
   }
 
+  QString glviewer_t::helpString() const
+  {
+    QString text("<h2>MS Complex Viewer</h2>");
+    return text;
+  }
 
+  void viewer_mainwindow::on_datapiece_view_customContextMenuRequested  ( const QPoint &p )
+  {
+    QModelIndexList l =  datapiece_view->selectionModel()->selectedIndexes();
 
-  void grid_viewer_mainwindow::perform_tva_action ( const eTreeViewActions &action, const bool & state )
+    configurable_ctx_menu(m_viewer->m_ren,l,datapiece_view->mapToGlobal(p));
+
+    m_viewer->updateGL();
+  }
+
+  void viewer_mainwindow::on_critpt_view_customContextMenuRequested ( const QPoint &p )
   {
 
-    QModelIndexList indexes = datapiece_treeView->selectionModel()->selectedIndexes();
+    QModelIndexList l = m_cp_model_proxy->mapSelectionToSource
+                        (critpt_view->selectionModel()->selection()).indexes();
 
-    bool need_update = false;
+    configurable_ctx_menu(m_viewer->m_ren->m_grid_piece_rens[m_active_otp_idx],
+                          l,critpt_view->mapToGlobal(p));
 
-    for ( QModelIndexList::iterator ind_it = indexes.begin();ind_it != indexes.end(); ++ind_it )
-    {
-      GridTreeModel::tree_item *item = static_cast<GridTreeModel::tree_item*> ( ( *ind_it ).internalPointer() );
-
-      if(state != get_tva_item_flag_ref(action,item->node))
-      {
-        get_tva_item_flag_ref(action,item->node) = state;
-        need_update = true;
-      }
-
-    }
-
-    if(need_update )
-    {
-      m_viewer->updateGL();
-    }
+    m_viewer->updateGL();
   }
 
-#define ADD_MENU_ACTION(menu_ptr,action_string,start_state,recv_func_name) \
-  {\
-   QAction * _ama_action  = (menu_ptr)->addAction ( tr(action_string) );\
-                            _ama_action->setCheckable ( true );\
-                            _ama_action->setChecked ( (start_state));\
-                            connect ( _ama_action,SIGNAL ( toggled ( bool ) ),this,SLOT ( recv_func_name(bool) ) );\
-                          }\
+  void viewer_mainwindow::on_datapiece_view_activated ( const QModelIndex & index  )
+  {
+    if(m_active_otp_idx == index.row())
+      return;
 
+    m_active_otp_idx = index.row();
 
+    m_cp_model->reset_configurable
+        (m_viewer->m_ren->m_grid_piece_rens[m_active_otp_idx]);
+  }
 
-void grid_viewer_mainwindow::on_datapiece_treeView_customContextMenuRequested ( const QPoint &pos )
-{
+  inline double get_nrm_value(double d_val,double d_min,double d_max)
+  {
+    return (d_val - d_min)/(d_max - d_min);
+  }
 
-    QMenu menu;
+  void viewer_mainwindow::update_roi_box(double l,double u,uint dim)
+  {
+    m_viewer->m_ren->set_roi_dim_range_nrm(l,u,dim);
 
-    ADD_MENU_ACTION ( &menu, "show surface", get_tva_state ( TVA_SURF ), show_surf_toggled );
-    ADD_MENU_ACTION ( &menu, "show critical points", get_tva_state ( TVA_CPS ), show_cps_toggled );
-    ADD_MENU_ACTION ( &menu, "show critical point labels", get_tva_state ( TVA_CPLABELS ), show_cplabels_toggled );
-    ADD_MENU_ACTION ( &menu, "show graph", get_tva_state ( TVA_GRAPH ), show_graph_toggled );
-    ADD_MENU_ACTION ( &menu, "show grad", get_tva_state ( TVA_GRAD ), show_grad_toggled );
-    ADD_MENU_ACTION ( &menu, "show canc cps", get_tva_state ( TVA_CANC_CPS ), show_canc_cps_toggled );
-    ADD_MENU_ACTION ( &menu, "show canc graph", get_tva_state ( TVA_CANC_GRAPH ), show_canc_graph_toggled );
-    menu.exec ( datapiece_treeView->mapToGlobal ( pos ) );
+    if (m_clear_roi_aabb_timer->isActive() ||
+        m_viewer->m_ren->m_bShowRoiBB == false)
+    {
+      m_viewer->m_ren->m_bShowRoiBB = true;
+
+      m_clear_roi_aabb_timer->start();
+    }
+
+    m_viewer->updateGL();
+  }
+
+  void viewer_mainwindow::on_xroi_spanslider_spanChanged(int l , int u )
+  {
+    BOOST_AUTO(sldr,xroi_spanslider);
+
+    update_roi_box(get_nrm_value(l,sldr->minimum(),sldr->maximum()),
+                   get_nrm_value(u,sldr->minimum(),sldr->maximum()),0);
 
   }
 
+  void viewer_mainwindow::on_yroi_spanslider_spanChanged(int l , int u )
+  {
+    BOOST_AUTO(sldr,yroi_spanslider);
 
-  grid_viewer_mainwindow::grid_viewer_mainwindow
-      (std::vector<datapiece_t *> * p ,
-       uint size_x,
-       uint size_y)
+    update_roi_box(get_nrm_value(l,sldr->minimum(),sldr->maximum()),
+                   get_nrm_value(u,sldr->minimum(),sldr->maximum()),1);
+
+  }
+
+  void viewer_mainwindow::on_zroi_spanslider_spanChanged(int l , int u )
+  {
+    BOOST_AUTO(sldr,zroi_spanslider);
+
+    update_roi_box(get_nrm_value(l,sldr->minimum(),sldr->maximum()),
+                   get_nrm_value(u,sldr->minimum(),sldr->maximum()),2);
+
+  }
+
+  void viewer_mainwindow::on_update_roi_pushButton_clicked(bool)
+  {
+    m_viewer->m_ren->m_bRebuildRens = true;
+
+    m_viewer->updateGL();
+  }
+
+  void viewer_mainwindow::on_center_to_roi_checkBox_clicked(bool state)
+  {
+    m_viewer->m_ren->m_bCenterToRoi = state;
+
+    m_viewer->updateGL();
+  }
+
+  void viewer_mainwindow::clear_roi_aabb()
+  {
+    m_viewer->m_ren->m_bShowRoiBB = false;
+
+    m_viewer->updateGL();
+  }
+
+  viewer_mainwindow::viewer_mainwindow
+      (data_manager_t * gdm):
+      m_active_otp_idx(0)
   {
     setupUi (this);
 
-    m_viewer = new grid_glviewer(p,size_x,size_y);
+    m_viewer = new glviewer_t(gdm);
 
     m_viewer->setParent(glviewer);
 
     m_viewer->resize(glviewer->size());
 
-    GridTreeModel *model = new GridTreeModel ( &m_viewer->m_grid_piece_rens);
+    m_otp_model = new configurable_item_model (m_viewer->m_ren,this);
 
-    RecursiveTreeItemSelectionModel * sel_model =
-        new RecursiveTreeItemSelectionModel ( model, datapiece_treeView );
+    datapiece_view->setModel ( m_otp_model );
 
-    datapiece_treeView->setModel ( model );
+    m_cp_model = new configurable_item_model
+                 (m_viewer->m_ren->m_grid_piece_rens[m_active_otp_idx],this);
 
-    datapiece_treeView->setSelectionModel ( sel_model );
+    m_cp_model_proxy = new QSortFilterProxyModel(this);
 
+    m_cp_model_proxy->setSourceModel(m_cp_model);
+
+    critpt_view->setModel ( m_cp_model_proxy );
+
+    connect(critpt_filter_edit,SIGNAL(textChanged(QString)),
+            m_cp_model_proxy,SLOT(setFilterFixedString(QString)));
+
+    m_clear_roi_aabb_timer = new QTimer(this);
+
+    m_clear_roi_aabb_timer->setSingleShot(true);
+
+    m_clear_roi_aabb_timer->setInterval(g_roi_show_aabb_time_msec);
+
+    connect(m_clear_roi_aabb_timer,SIGNAL(timeout()),this,SLOT(clear_roi_aabb()));
   }
 
-
-  GridTreeModel::GridTreeModel ( std::vector<grid_piece_rendata *> * dpList, QObject *parent )
-    : QAbstractItemModel ( parent )
+  void viewer_mainwindow::showEvent ( QShowEvent * )
   {
-    setupModelData ( dpList );
+    m_cp_model->force_reset();
   }
 
-  GridTreeModel::~GridTreeModel()
+  viewer_mainwindow::~viewer_mainwindow()
   {
-    delete m_tree;
-    m_tree = NULL;
   }
 
-
-  int GridTreeModel::columnCount ( const QModelIndex &/*parent*/ ) const
+  inline QColor to_qcolor (const glutils::color_t & c)
   {
-    return 1;
+    return QColor::fromRgbF(c[0],c[1],c[2]);
   }
 
-  QVariant GridTreeModel::data ( const QModelIndex &index, int role ) const
+  QVariant configurable_item_model::data
+      ( const QModelIndex &index, int role ) const
   {
     if ( !index.isValid() )
       return QVariant();
 
-    if ( role != Qt::DisplayRole )
+    if(index.column() >= m_conf->columns())
       return QVariant();
 
-    tree_item *item = static_cast<tree_item*> ( index.internalPointer() );
+    configurable_t::data_index_t idx(index.column(),index.row());
 
-    return QString(item->node->dp->label().c_str());
-  }
+    boost::any val;
 
-  Qt::ItemFlags GridTreeModel::flags ( const QModelIndex &index ) const
-  {
-    if ( !index.isValid() )
-      return 0;
+    m_conf->exchange_data(idx,val);
 
-    return Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-  }
-
-  QVariant GridTreeModel::headerData ( int /*section*/, Qt::Orientation orientation,
-                                       int role ) const
-  {
-    if ( orientation == Qt::Horizontal && role == Qt::DisplayRole )
-      return "Data Pieces";
+    if(role == Qt::DisplayRole)
+    {
+      if(val.type() == typeid(std::string))
+        return QString(boost::any_cast<std::string>(val).c_str());
+      else if (val.type() == typeid(bool))
+        return boost::any_cast<bool>(val);
+      else if (val.type() == typeid(int))
+        return boost::any_cast<int>(val);
+      else if (val.type() == typeid(glutils::color_t))
+        return to_qcolor(boost::any_cast<glutils::color_t>(val));
+    }
+    else if( role == Qt::DecorationRole)
+    {
+      if (val.type() == typeid(glutils::color_t))
+        return to_qcolor(boost::any_cast<glutils::color_t>(val));
+    }
 
     return QVariant();
   }
 
-  QModelIndex GridTreeModel::index ( int row, int column, const QModelIndex &parent ) const
+  int configurable_item_model::columnCount ( const QModelIndex &parent  ) const
   {
-    if ( !hasIndex ( row, column, parent ) )
-      return QModelIndex();
-
-    tree_item *parentItem;
-
-    if ( !parent.isValid() )
-      parentItem = m_tree;
-    else
-      parentItem = static_cast<tree_item*> ( parent.internalPointer() );
-
-    if ( row < ( int ) parentItem->children.size() )
-      return createIndex ( row, column, parentItem->children[row] );
-    else
-      return QModelIndex();
-
+    return m_conf->columns();
   }
 
-  QModelIndex GridTreeModel::parent ( const QModelIndex &index ) const
+  QVariant configurable_item_model::headerData
+      ( int section, Qt::Orientation orientation,int role ) const
   {
-    if ( !index.isValid() )
-      return QModelIndex();
-
-    tree_item *childItem  = static_cast<tree_item*> ( index.internalPointer() );
-
-    tree_item *parentItem = childItem->parent;
-
-    if ( parentItem == m_tree )
-      return QModelIndex();
-
-    return createIndex ( parentItem->row(), 0, parentItem );
-
-  }
-
-  int GridTreeModel::rowCount ( const QModelIndex &parent ) const
-  {
-    tree_item *parentItem;
-
-    if ( parent.column() > 0 )
-      return 0;
-
-    if ( !parent.isValid() )
-      parentItem = m_tree;
-    else
-      parentItem = static_cast<tree_item*> ( parent.internalPointer() );
-
-    return parentItem->children.size();
-
-  }
-
-  void GridTreeModel::setupModelData( std::vector<grid_piece_rendata *> * dpList)
-  {
-    m_tree = new tree_item();
-
-
-    for ( std::vector<grid_piece_rendata*>::iterator dp_it =  dpList->begin();
-    dp_it != dpList->end(); ++dp_it )
+    if ( orientation == Qt::Horizontal &&
+         role == Qt::DisplayRole &&
+         section < m_conf->columns())
     {
-      grid_piece_rendata *dp = *dp_it;
 
-      tree_item *parentItem = m_tree;
+      boost::any h  = m_conf->get_header(section);
 
-
-      tree_item * dpItem = new tree_item ( dp, parentItem );
-
-      parentItem->children.push_back ( dpItem );
-
+      if(h.type() == typeid(std::string))
+        return (boost::any_cast<std::string>(h)).c_str();
     }
+    return QVariant();
   }
 
-  GridTreeModel::tree_item::tree_item
-      ( grid_piece_rendata * _node , tree_item * par ) :
-      node ( _node ),parent ( par )
+  int configurable_item_model::rowCount ( const QModelIndex &parent ) const
   {
+    return m_conf->rows();
   }
 
-  GridTreeModel::tree_item::tree_item()
+  void configurable_item_model::reset_configurable(configurable_t *conf)
   {
-    node = NULL;
-    parent = NULL;
-  }
-
-  int GridTreeModel::tree_item::row()
-  {
-    return std::find ( parent->children.begin(),parent->children.end(),this )
-        - parent->children.begin();
-  }
-
-
-  void RecursiveTreeItemSelectionModel::select
-      ( const QModelIndex &index,
-        QItemSelectionModel::SelectionFlags command )
-  {
-
-    QItemSelectionModel::select ( index,command );
-
-    if ( ! ( command & QItemSelectionModel::Select ) )
-    {
+    if(conf == m_conf)
       return;
-    }
+    m_conf = conf;
 
-    if ( index.isValid() && !m_pTreeView->isExpanded ( index ) )
-    {
-      QModelIndexList indexes_to_select;
-
-      collect_all_children ( index,indexes_to_select );
-
-      for ( QModelIndexList::iterator ind_it = indexes_to_select.begin();
-      ind_it != indexes_to_select.end();++ind_it )
-      {
-        QItemSelectionModel::select ( *ind_it,QItemSelectionModel::Select );
-      }
-    }
+    reset();
   }
 
-  void RecursiveTreeItemSelectionModel::select
-      ( const QItemSelection &selection,
-        QItemSelectionModel::SelectionFlags command )
+  void configurable_ctx_menu
+      (configurable_t *c,
+       const QModelIndexList & l,
+       const QPoint &p)
   {
-    QItemSelectionModel::select ( selection,command );
+
+    if(l.size() == 0)
+      return;
+
+    uint first_row = l[0].row();
+
+    QMenu m;
+
+    for(uint i = 0 ; i < c->columns();++i)
+    {
+      boost::any val;
+
+      configurable_t::data_index_t idx(i,first_row);
+
+      bool is_rw = c->exchange_data(idx,val);
+
+      if(is_rw == false) continue;
+
+      boost::any h  = c->get_header(i);
+
+      std::string hdr("could not read column header");
+
+      if(h.type() == typeid(std::string))
+        hdr = (boost::any_cast<std::string>(h)).c_str();
+
+      QAction * action  = m.addAction ( hdr.c_str());
+
+      if(val.type() == typeid(bool))
+      {
+        action->setCheckable(true);
+        action->setChecked(boost::any_cast<bool>(val));
+      }
+
+      configurable_ctx_menu_sig_collector * coll =
+          new configurable_ctx_menu_sig_collector(c,val,i,l,&m);
+
+      m.connect(action,SIGNAL ( triggered ( bool ) ),
+                    coll,SLOT(triggered ( bool )));
+    }
+
+    m.exec(p);
   }
 
-  void RecursiveTreeItemSelectionModel::collect_all_children
-      ( const QModelIndex &index,QModelIndexList &retlist )
+  void configurable_ctx_menu_sig_collector::triggered(bool state)
   {
-    QModelIndexList ind_stack;
+    boost::any out_val;
 
-    ind_stack.push_back ( index );
+    if(m_val.type() == typeid(bool))
+      out_val = boost::any(state);
 
-    while ( ind_stack.size() !=0 )
+    if(m_val.type() == typeid(glutils::color_t))
     {
-      QModelIndex top_ind = ind_stack.front();
 
-      ind_stack.pop_front();
+      glutils::color_t c = boost::any_cast<glutils::color_t>(m_val);
 
-      retlist.push_back ( top_ind );
+      QColor ic = QColor::fromRgbF(c[0],c[1],c[2],1.0);
 
-      uint child_ind = 0;
+      QColor qc = QColorDialog::getColor(ic);
 
-      QModelIndex child = top_ind.child ( child_ind++, top_ind.column() );
+      if(qc.isValid())
+        out_val = glutils::color_t(qc.redF(),qc.greenF(),qc.blueF());
+    }
 
-      while ( child.isValid() )
-      {
-        ind_stack.push_back ( child );
+    if(out_val.empty())
+      return;
 
-        child = top_ind.child ( child_ind++, top_ind.column() );
-      }
+    for(uint i = 0 ; i < m_rows.size();++i)
+    {
+      configurable_t::data_index_t idx;
+      idx[1] = m_rows[i].row();
+      idx[0] = m_col;
+
+      m_conf->exchange_data(idx,out_val);
     }
   }
 }

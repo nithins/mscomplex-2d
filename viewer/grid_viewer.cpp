@@ -1,45 +1,209 @@
 #include <sstream>
+#include <cstring>
+#include <iostream>
+
+#include <boost/algorithm/string_regex.hpp>
+#include <boost/lambda/lambda.hpp>
+#include <boost/static_assert.hpp>
 
 #include <GL/glew.h>
 
 #include <glutils.h>
+#include <GLSLProgram.h>
+#include <logutil.h>
 
 #include <grid_viewer.h>
 #include <grid_datamanager.h>
+#include <grid_mscomplex.h>
+#include <grid_mscomplex_ensure.h>
 #include <grid_dataset.h>
 
-#include <grid_mscomplex.h>
+#include <shadersources.h>
+
+
+
+#define static_assert BOOST_STATIC_ASSERT
+
+GLSLProgram * s_cell_shaders[grid::GRADDIR_COUNT] = {NULL,NULL};
+
+glutils::color_t g_grid_cp_colors[grid::gc_grid_dim+1] =
+{
+  glutils::color_t(0.0,0.0,1.0),
+  glutils::color_t(0.0,1.0,0.0),
+  glutils::color_t(1.0,0.0,0.0),
+};
+
+glutils::color_t g_grid_grad_colors[grid::gc_grid_dim] =
+{
+  glutils::color_t(0.0,0.5,0.5 ),
+  glutils::color_t(0.5,0.0,0.5 ),
+};
+
+glutils::color_t g_disc_colors[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
+{
+  {
+    glutils::color_t(0.15,0.45,0.35 ),
+    glutils::color_t(0.25,0.15,0.75 ),
+    glutils::color_t(0.0,0.0,0.0 ),
+  },
+
+{
+    glutils::color_t(0.0,0.0,0.0 ),
+    glutils::color_t(0.35,0.25,0.65 ),
+    glutils::color_t(0.15,0.25,0.75 ),
+  },
+};
+
+glutils::color_t g_grid_cp_conn_colors[grid::gc_grid_dim] =
+{
+  glutils::color_t(0.0,0.5,0.5 ),
+  glutils::color_t(0.5,0.0,0.5 ),
+};
+
+glutils::color_t g_roiaabb_color = glutils::color_t(0.85,0.75,0.65);
+
+const char * shader_consts[grid::GRADDIR_COUNT]
+    = {"const float even_sz = 0.1;"\
+       "const float odd_sz  = 1.0;",
+       "const float even_sz = 1.0;"\
+       "const float odd_sz  = 0.1;"};
 
 namespace grid
 {
 
-  grid_glviewer::grid_glviewer
-      (std::vector<datapiece_t *> * p ,uint size_x,uint size_y):
-      m_size_x(size_x),
-      m_size_y(size_y)
+  glutils::vertex_t cell_to_vertex(cellid_t c)
   {
-    for(uint i = 0 ;i < p->size();++i)
-      m_grid_piece_rens.push_back(new grid_piece_rendata(p->at(i)));
+    return glutils::vertex_t(c[0],0,c[1]);
   }
 
-  grid_glviewer::~grid_glviewer()
+  void disc_rendata_t::init()
+  {
+    for(uint i = 0 ;i < GRADDIR_COUNT;++i)
+    {
+
+      if(s_cell_shaders[i] != NULL )
+        continue;
+
+
+      std::string geom_glsl(cell_shader_geom_glsl);
+
+      boost::replace_regex
+          ( geom_glsl,
+            boost::regex("//HEADER_REPLACE_BEGIN(.*)//HEADER_REPLACE_END"),
+            std::string(shader_consts[i]) );
+
+
+      s_cell_shaders[i] = GLSLProgram::createFromSourceStrings
+                          (cell_shader_vert_glsl,
+                           geom_glsl,
+                           std::string(),
+                           GL_POINTS,GL_TRIANGLES);
+
+      std::string log;
+
+      s_cell_shaders[i]->GetProgramLog ( log );
+
+      if(log.size() !=0 )
+        std::cout<<"shader log ::\n"<<log<<"\n";
+    }
+
+  }
+
+  void disc_rendata_t::cleanup()
+  {
+    for(uint i = 0 ;i < GRADDIR_COUNT;++i)
+    {
+      if(s_cell_shaders[i] != NULL )
+        continue;
+
+      delete s_cell_shaders[i];
+
+      s_cell_shaders[i] = NULL;
+    }
+  }
+
+  grid_viewer_t::grid_viewer_t
+      (data_manager_t * gdm):
+      m_size(gdm->m_size),m_scale_factor(0),
+      m_bRebuildRens(true),m_bShowRoiBB(false),m_bCenterToRoi(false),
+      m_gdm(gdm)
+
+  {
+    m_roi = rect_t(cellid_t::zero,(m_size-cellid_t::one)*2);
+
+    for(uint i = 0 ;i < m_gdm->m_pieces.size();++i)
+      m_grid_piece_rens.push_back(new octtree_piece_rendata(m_gdm->m_pieces.at(i)));
+
+    m_roi_base_pt  = ((m_roi.upper_corner() +  m_roi.lower_corner())/2);
+
+  }
+
+  grid_viewer_t::~grid_viewer_t()
   {
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
       delete m_grid_piece_rens[i];
 
     m_grid_piece_rens.clear();
+
+    disc_rendata_t::cleanup();
+
+    delete m_gdm;
   }
 
-  void grid_glviewer::draw()
+  void grid_viewer_t::set_roi_dim_range_nrm(double l,double u,int dim)
   {
+    if(!(l<u && 0.0 <= l && u <=1.0 && 0<=dim && dim < gc_grid_dim))
+      return;
+
+    rect_t roi = rect_t(cellid_t::zero,(m_size-cellid_t::one)*2);
+
+    double span = roi[dim].span();
+
+    m_roi[dim][0]  = (uint)(l*span);
+    m_roi[dim][1]  = (uint)(u*span);
+
+    m_roi_base_pt  = ((m_roi.upper_corner() +  m_roi.lower_corner())/2);
+  }
+
+  int grid_viewer_t::render()
+  {
+    if(m_bRebuildRens)
+    {
+      build_rens();
+
+      m_bRebuildRens = false;
+    }
 
     glPushAttrib(GL_ENABLE_BIT);
 
     glEnable(GL_NORMALIZE);
 
-    glTranslatef(-1,0,-1);
+    glScalef(m_scale_factor,
+             m_scale_factor,
+             m_scale_factor);
 
-    glScalef(0.5/(double) m_size_x,0.1,0.5/(double) m_size_y);
+    if(m_bCenterToRoi)
+      glTranslatef(-m_roi_base_pt[0],
+                   0,
+                   -m_roi_base_pt[1]);
+    else
+      glTranslatef(std::min(-m_size[0]+1,-1),
+                   0,
+                   std::min(-m_size[1]+1,-1));
+
+    if(m_bShowRoiBB)
+    {
+      glPushAttrib(GL_ENABLE_BIT);
+
+      glDisable(GL_LIGHTING);
+
+      glColor3dv(g_roiaabb_color.data());
+
+      glutils::draw_aabb_line(cell_to_vertex(m_roi.lower_corner()),
+                              cell_to_vertex(m_roi.upper_corner()));
+
+      glPopAttrib();
+    }
 
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
     {
@@ -49,121 +213,167 @@ namespace grid
     glPopAttrib();
   }
 
-  void grid_glviewer::init()
+  void grid_viewer_t::build_rens()
+  {
+    for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
+    {
+      m_grid_piece_rens[i]->create_cp_rens(m_roi);
+      m_grid_piece_rens[i]->create_canc_cp_rens(m_roi);
+      m_grid_piece_rens[i]->create_grad_rens(m_roi);
+    }
+  }
+
+  void grid_viewer_t::init()
   {
     glutils::init();
 
-    // Restore previous viewer state.
-    restoreStateFromFile();
+    disc_rendata_t::init();
+
+    m_scale_factor = 0.5/ std::max((double) *std::max_element
+                                   (m_size.begin(),m_size.end())-1.0,1.0);
+
+    /*turn back face culling off */
+    glEnable ( GL_CULL_FACE );
+
+    /*cull backface */
+    glCullFace ( GL_BACK );
+
+    /*polymode */
+    glPolygonMode ( GL_FRONT, GL_FILL );
+
+    glPolygonMode ( GL_BACK, GL_LINE );
 
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
     {
-      m_grid_piece_rens[i]->create_cp_rens();
-      m_grid_piece_rens[i]->create_grad_rens();
-      m_grid_piece_rens[i]->create_surf_ren();
+      m_grid_piece_rens[i]->create_cp_loc_bo();
+      m_grid_piece_rens[i]->create_disc_rds();
+    }
+  }
 
+  int grid_viewer_t::rows()
+  {
+    return m_grid_piece_rens.size();
+
+  }
+  int grid_viewer_t::columns()
+  {
+    return 10;
+  }
+  bool grid_viewer_t::exchange_data(const data_index_t &idx,boost::any &v)
+  {
+
+    switch(idx[0])
+    {
+    case 0: return s_exchange_ro(m_grid_piece_rens[idx[1]]->dp->label(),v);
+    case 1: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowAllCps,v);
+    case 2: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCps[0],v);
+    case 3: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCps[1],v);
+    case 4: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCps[2],v);
+    case 5: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCpLabels,v);
+    case 6: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowMsGraph,v);
+    case 7: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowGrad,v);
+    case 8: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCancCps,v);
+    case 9: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCancMsGraph,v);
     }
 
+    throw std::logic_error("unknown index");
   }
-
-  QString grid_glviewer::helpString() const
+  boost::any grid_viewer_t::get_header(int i)
   {
-    QString text("<h2>MS Complex Viewer</h2>");
-    return text;
+    switch(i)
+    {
+
+    case 0: return std::string("oct tree piece");
+    case 1: return std::string("all cps");
+    case 2: return std::string("minima");
+    case 3: return std::string("1 saddle");
+    case 4: return std::string("maxima");
+    case 5: return std::string("cp labels");
+    case 6: return std::string("msgraph");
+    case 7: return std::string("gradient");
+    case 8: return std::string("cancelled cps");
+    case 9: return std::string("cancelled cp msgraph");
+    }
+
+    throw std::logic_error("unknown index");
   }
 
-  grid_piece_rendata::grid_piece_rendata (datapiece_t * _dp):
-      m_bShowSurface ( false ),
-      m_bShowCps ( false ),
+
+  octtree_piece_rendata::octtree_piece_rendata (datapiece_t * _dp):
+      m_bShowAllCps(false),
       m_bShowCpLabels ( false ),
       m_bShowMsGraph ( false ),
       m_bShowGrad ( false ),
       m_bShowCancCps(false),
       m_bShowCancMsGraph(false),
+      m_bNeedUpdateDiscRens(false),
       dp(_dp)
   {
-    memset(ren_cp,0,sizeof(ren_cp));
-    memset(&ren_surf,0,sizeof(ren_surf));
-    memset(ren_grad,0,sizeof(ren_grad));
-    memset(ren_cp_labels,0,sizeof(ren_cp_labels));
-    memset(ren_cp_conns,0,sizeof(ren_cp_conns));
-    memset(ren_canc_cp,0,sizeof(ren_canc_cp));
-    memset(ren_canc_cp_labels,0,sizeof(ren_canc_cp_labels));
-    memset(ren_canc_cp_conns,0,sizeof(ren_canc_cp_conns));
+    using namespace boost::lambda;
+
+    std::for_each(m_bShowCps,m_bShowCps+gc_grid_dim+1,_1 = false);
+
   }
 
-  void  grid_piece_rendata::create_cp_rens()
+  void octtree_piece_rendata::create_cp_loc_bo()
   {
     if(dp->msgraph == NULL)
       return;
 
-    std::vector<std::string>            crit_labels[3];
-    std::vector<glutils::vertex_t>      crit_label_locations[3];
-    std::vector<glutils::point_idx_t>   crit_pt_idxs[3];
-    std::vector<glutils::line_idx_t>    crit_conn_idxs[2];
-
-
-    std::vector<std::string>            crit_canc_labels[3];
-    std::vector<glutils::vertex_t>      crit_canc_label_locations[3];
-    std::vector<glutils::point_idx_t>   crit_canc_pt_idxs[3];
-    std::vector<glutils::line_idx_t>    crit_canc_conn_idxs[2];
-
-    std::vector<glutils::vertex_t>      crit_locations;
-    std::map<uint,uint>                 crit_ms_idx_ren_idx_map;
+    std::vector<glutils::vertex_t>  cp_loc;
 
     for(uint i = 0; i < dp->msgraph->m_cps.size(); ++i)
     {
-      if(dp->msgraph->m_cps[i]->isCancelled)
+      cellid_t c = (dp->msgraph->m_cps[i]->cellid);
+      cp_loc.push_back(glutils::vertex_t(c[0],0,c[1]));
+    }
+
+    cp_loc_bo = glutils::make_buf_obj(cp_loc);
+  }
+
+  void  octtree_piece_rendata::create_cp_rens(const rect_t & roi)
+  {
+    if(dp->msgraph == NULL)
+      return;
+
+    std::vector<std::string>            crit_labels[gc_grid_dim+1];
+    std::vector<glutils::vertex_t>      crit_label_locations[gc_grid_dim+1];
+    std::vector<glutils::point_idx_t>   crit_pt_idxs[gc_grid_dim+1];
+    std::vector<glutils::line_idx_t>    crit_conn_idxs[gc_grid_dim];
+
+    for(uint i = 0; i < dp->msgraph->m_cps.size(); ++i)
+    {
+      if(dp->msgraph->m_cps[i]->is_paired)
         continue;
 
       cellid_t c = (dp->msgraph->m_cps[i]->cellid);
 
-      uint dim = dataset_t::s_getCellDim(c);
+      if(!roi.contains(c))
+        continue;
+
+      uint index = dp->msgraph->m_cps[i]->index;
 
       std::stringstream ss;
 
       ((std::ostream&)ss)<<c;
 
-      double x = c[0],y = dp->msgraph->m_cps[i]->fn,z=c[1];
-
-      if(dp->msgraph->m_cps[i]->is_paired)
+      if(!dp->msgraph->m_cps[i]->is_paired)
       {
-        crit_canc_labels[dim].push_back(ss.str());
-        crit_canc_label_locations[dim].push_back(glutils::vertex_t(x,y,z) );
-        crit_canc_pt_idxs[dim].push_back(glutils::point_idx_t(crit_locations.size()));
+        crit_labels[index].push_back(ss.str());
+        crit_label_locations[index].push_back(cell_to_vertex(c) );
+        crit_pt_idxs[index].push_back(i);
       }
-      else
-      {
-        crit_labels[dim].push_back(ss.str());
-        crit_label_locations[dim].push_back(glutils::vertex_t(x,y,z) );
-        crit_pt_idxs[dim].push_back(glutils::point_idx_t(crit_locations.size()));
-      }
-
-      crit_ms_idx_ren_idx_map[i] = crit_locations.size();
-      crit_locations.push_back(glutils::vertex_t(x,y,z));
     }
 
-    glutils::bufobj_ptr_t crit_loc_bo = glutils::make_buf_obj(crit_locations);
-
-    for(uint i = 0 ; i < 3; ++i)
+    for(uint i = 0 ; i < gc_grid_dim+1; ++i)
     {
-      ren_cp_labels[i] =
-          glutils::create_buffered_text_ren
-          (crit_labels[i],crit_label_locations[i]);
+      ren_cp_labels[i].reset(glutils::create_buffered_text_ren
+                             (crit_labels[i],crit_label_locations[i]));
 
-      ren_cp[i] =glutils::create_buffered_points_ren
-                 (crit_loc_bo,
-                  glutils::make_buf_obj(crit_pt_idxs[i]),
-                  glutils::make_buf_obj());
-
-      ren_canc_cp_labels[i] =
-          glutils::create_buffered_text_ren
-          (crit_canc_labels[i],crit_canc_label_locations[i]);
-
-      ren_canc_cp[i] =glutils::create_buffered_points_ren
-                      (crit_loc_bo,
-                       glutils::make_buf_obj(crit_canc_pt_idxs[i]),
-                       glutils::make_buf_obj());
+      ren_cp[i].reset(glutils::create_buffered_points_ren
+                      (cp_loc_bo,
+                       glutils::make_buf_obj(crit_pt_idxs[i]),
+                       glutils::make_buf_obj()));
     }
 
     for(uint i = 0 ; i < dp->msgraph->m_cps.size(); ++i)
@@ -171,217 +381,253 @@ namespace grid
       if(dp->msgraph->m_cps[i]->isCancelled)
         continue;
 
-      conn_set_t *cp_acdc[] = {&dp->msgraph->m_cps[i]->conn[0],&dp->msgraph->m_cps[i]->conn[1]};
-
-      uint acdc_ct = 1;
-
       if(dp->msgraph->m_cps[i]->is_paired)
-        acdc_ct = 2;
+        continue;
 
-      uint cp_ren_idx = crit_ms_idx_ren_idx_map[i];
+      cellid_t c = (dp->msgraph->m_cps[i]->cellid);
 
-      uint dim = dataset_t::s_getCellDim
-                 (dp->msgraph->m_cps[i]->cellid);
+      if(!roi.contains(c))
+        continue;
 
-      for (uint j = 0 ; j < acdc_ct; ++j)
+      uint index = dp->msgraph->m_cps[i]->index;
+
+      for(conn_iter_t it  = dp->msgraph->m_cps[i]->conn[0].begin();
+      it != dp->msgraph->m_cps[i]->conn[0].end(); ++it)
       {
-        for(conn_iter_t it = cp_acdc[j]->begin(); it != cp_acdc[j]->end(); ++it)
-        {
-          if(dp->msgraph->m_cps[*it]->isCancelled)
-            throw std::logic_error("this cancelled cp should not be present here");
+        if(!roi.contains(dp->msgraph->m_cps[*it]->cellid))
+          continue;
 
-          if(dp->msgraph->m_cps[*it]->is_paired)
-            throw std::logic_error("a true cp should not be connected to a bc cp");
-
-          uint conn_cp_ren_idx = crit_ms_idx_ren_idx_map[*it];
-
-          if(dp->msgraph->m_cps[i]->is_paired)
-          {
-            crit_canc_conn_idxs[dim-1+j].push_back
-                (glutils::line_idx_t(cp_ren_idx,conn_cp_ren_idx));
-          }
-          else
-          {
-            crit_conn_idxs[dim-1+j].push_back
-                (glutils::line_idx_t(cp_ren_idx,conn_cp_ren_idx));
-          }
-        }
+        crit_conn_idxs[index-1].push_back
+            (glutils::line_idx_t(i,*it));
       }
     }
 
-    for(uint i = 0 ; i < 2; ++i)
+    for(uint i = 0 ; i < gc_grid_dim; ++i)
     {
-      ren_cp_conns[i] = glutils::create_buffered_lines_ren
-                        (crit_loc_bo,
-                         glutils::make_buf_obj(crit_conn_idxs[i]),
-                         glutils::make_buf_obj());
-
-      ren_canc_cp_conns[i] = glutils::create_buffered_lines_ren
-                             (crit_loc_bo,
-                              glutils::make_buf_obj(crit_canc_conn_idxs[i]),
-                              glutils::make_buf_obj());
+      ren_cp_conns[i].reset(glutils::create_buffered_lines_ren
+                            (cp_loc_bo,
+                             glutils::make_buf_obj(crit_conn_idxs[i]),
+                             glutils::make_buf_obj()));
     }
 
   }
 
-  void grid_piece_rendata::create_grad_rens()
+  void  octtree_piece_rendata::create_canc_cp_rens(const rect_t & roi)
+  {
+    if(dp->msgraph == NULL)
+      return;
+
+    std::vector<std::string>            canc_cp_labels[gc_grid_dim+1];
+    std::vector<glutils::vertex_t>      canc_cp_label_locations[gc_grid_dim+1];
+    std::vector<glutils::point_idx_t>   canc_cp_idxs[gc_grid_dim+1];
+    std::vector<glutils::line_idx_t>    canc_cp_conn_idxs[gc_grid_dim];
+
+    for(uint i = 0; i < dp->msgraph->m_cps.size(); ++i)
+    {
+      if(!dp->msgraph->m_cps[i]->is_paired)
+        continue;
+
+      cellid_t c = (dp->msgraph->m_cps[i]->cellid);
+
+      if(!roi.contains(c))
+        continue;
+
+      uint index = dp->msgraph->m_cps[i]->index;
+
+
+
+      canc_cp_labels[index].push_back(c.to_string());
+      canc_cp_label_locations[index].push_back(cell_to_vertex(c) );
+      canc_cp_idxs[index].push_back(i);
+
+    }
+
+    for(uint i = 0 ; i < gc_grid_dim+1; ++i)
+    {
+
+      ren_canc_cp_labels[i].reset(glutils::create_buffered_text_ren
+                                  (canc_cp_labels[i],canc_cp_label_locations[i]));
+
+      ren_canc_cp[i].reset(glutils::create_buffered_points_ren
+                           (cp_loc_bo,
+                            glutils::make_buf_obj(canc_cp_idxs[i]),
+                            glutils::make_buf_obj()));
+    }
+
+    for(uint i = 0 ; i < dp->msgraph->m_cps.size(); ++i)
+    {
+      if(!dp->msgraph->m_cps[i]->is_paired)
+        continue;
+
+      cellid_t c = (dp->msgraph->m_cps[i]->cellid);
+
+      if(!roi.contains(c))
+        continue;
+
+      uint index = dp->msgraph->m_cps[i]->index;
+
+      for(uint dir = 0 ; dir <2 ;++dir)
+      {
+        for(conn_iter_t it  = dp->msgraph->m_cps[i]->conn[dir].begin();
+        it != dp->msgraph->m_cps[i]->conn[dir].end(); ++it)
+        {
+          if(!roi.contains(dp->msgraph->m_cps[*it]->cellid))
+            continue;
+
+          canc_cp_conn_idxs[index-(dir^1)].push_back
+              (glutils::line_idx_t(i,*it));
+        }
+      }
+    }
+
+    for(uint i = 0 ; i < gc_grid_dim; ++i)
+    {
+      ren_canc_cp_conns[i].reset(glutils::create_buffered_lines_ren
+                                 (cp_loc_bo,
+                                  glutils::make_buf_obj(canc_cp_conn_idxs[i]),
+                                  glutils::make_buf_obj()));
+    }
+
+  }
+
+  void octtree_piece_rendata::create_grad_rens(const rect_t & roi)
   {
     if(dp->dataset == NULL)
       return;
 
-    rect_t r = dp->dataset->get_ext_rect();
+    rect_t r;
+    if(!dp->dataset->get_ext_rect().intersection(roi,r))
+      return;
 
     std::vector<glutils::vertex_t>      cell_locations;
-    std::vector<glutils::line_idx_t>    pair_idxs[2];
+    std::vector<glutils::line_idx_t>    pair_idxs[gc_grid_dim];
 
+    static_assert(gc_grid_dim == 2 && "defined for 2-manifolds only");
 
-    for(cell_coord_t y = r[1][0]; y<=r[1][1]; ++y)
-      for(cell_coord_t x = r[0][0]; x<=r[0][1]; ++x)
+    cellid_t c;
+
+    for(c[1] = r[1][0] ; c[1] <= r[1][1]; ++c[1])
+    {
+      for(c[0] = r[0][0] ; c[0] <= r[0][1]; ++c[0])
       {
-      cellid_t c = cellid_t(x,y);
+        uint dim = dp->dataset->getCellDim(c);
 
-      uint dim = dataset_t::s_getCellDim(c);
-
-      if(dp->dataset->isCellPaired(c))
-      {
-        cellid_t p = dp->dataset->getCellPairId(c);
-
-        if(dp->dataset->isPairOrientationCorrect(c,p))
+        if(dp->dataset->isCellPaired(c))
         {
-          double x,y,z;
+          cellid_t p = dp->dataset->getCellPairId(c);
 
-          dp->dataset->getCellCoord(c,x,y,z);
-          cell_locations.push_back(glutils::vertex_t(x,y,z) );
+          if(dp->dataset->isPairOrientationCorrect(c,p))
+          {
+            cell_locations.push_back(cell_to_vertex(c) );
 
-          dp->dataset->getCellCoord(p,x,y,z);
-          cell_locations.push_back(glutils::vertex_t(x,y,z) );
+            cell_locations.push_back(cell_to_vertex(p) );
 
-          pair_idxs[dim].push_back
-              (glutils::line_idx_t(cell_locations.size()-2,
-                                   cell_locations.size()-1));
-
+            pair_idxs[dim].push_back
+                (glutils::line_idx_t(cell_locations.size()-2,
+                                     cell_locations.size()-1));
+          }
         }
       }
     }
 
     glutils::bufobj_ptr_t cell_bo= glutils::make_buf_obj(cell_locations);
 
-    ren_grad[0] = glutils::create_buffered_lines_ren
-                  (cell_bo,
-                   glutils::make_buf_obj(pair_idxs[0]),
-                   glutils::make_buf_obj());
+    for(uint i = 0 ; i < gc_grid_dim; ++i)
 
-    ren_grad[1] = glutils::create_buffered_lines_ren
-                  (cell_bo,
-                   glutils::make_buf_obj(pair_idxs[1]),
-                   glutils::make_buf_obj());
-
-
+    {
+      ren_grad[i].reset(glutils::create_buffered_lines_ren
+                        (cell_bo,
+                         glutils::make_buf_obj(pair_idxs[i]),
+                         glutils::make_buf_obj()));
+    }
   }
 
-  void grid_piece_rendata::create_surf_ren()
+
+  void octtree_piece_rendata::create_disc_rds()
   {
-    if(dp->dataset == NULL)
+    if(dp->msgraph == NULL)
       return;
 
-    rect_t r = dp->dataset->get_ext_rect();
+    boost::shared_ptr<disc_rendata_t> sptr;
 
-    std::vector<glutils::vertex_t>      point_locs;
-    std::vector<glutils::tri_idx_t>     tri_idxs;
-
-    for(cell_coord_t y = r[1][0]; y<=r[1][1]; y+= 2)
+    for(uint i = 0 ; i < dp->msgraph->m_cps.size();++i)
     {
-      for(cell_coord_t x = r[0][0]; x<=r[0][1]; x+=2)
-      {
-        cellid_t c = cellid_t(x,y);
+      critpt_t * cp = dp->msgraph->m_cps[i];
 
-        double x,y,z;
+      if(cp->is_paired) continue;
 
-        dp->dataset->getCellCoord(c,x,y,z);
+      sptr.reset(new disc_rendata_t(cp->cellid,cp->index));
 
-        point_locs.push_back(glutils::vertex_t(x,y,z));
-      }
+      disc_rds.push_back(sptr);
     }
-
-    rect_size_t s = r.size();
-
-    glutils::idx_t p1=0,p2=1,p3=s[0]/2+2,p4 = s[0]/2+1;
-
-    for(cell_coord_t y = r[1][0]+1; y<r[1][1]; y+= 2)
-    {
-      for(cell_coord_t x = r[0][0]+1; x<r[0][1]; x+=2)
-      {
-        tri_idxs.push_back(glutils::tri_idx_t(p1,p4,p3));
-        tri_idxs.push_back(glutils::tri_idx_t(p1,p3,p2));
-
-        ++p1;++p2;++p3;++p4;
-      }
-      ++p1;++p2;++p3;++p4;
-    }
-
-    ren_surf = glutils::create_buffered_triangles_ren
-               (glutils::make_buf_obj(point_locs),
-                glutils::make_buf_obj(tri_idxs),
-                glutils::make_buf_obj());
   }
 
-  glutils::color_t g_grid_cp_colors[] =
+  void octtree_piece_rendata::update_active_disc_rens()
   {
-    glutils::color_t(0.0,0.0,1.0),
-    glutils::color_t(0.0,1.0,0.0),
-    glutils::color_t(1.0,0.0,0.0),
-  };
+    if(dp->msgraph == NULL)
+      return;
 
+    for(uint i = 0 ; i < disc_rds.size();++i)
+    {
+      if(disc_rds[i]->update(dp->msgraph))
+      {
+        if(active_disc_rens.count(disc_rds[i]) == 0)
+        {
+          active_disc_rens.insert(disc_rds[i]);
+        }
+        else
+        {
+          active_disc_rens.erase(disc_rds[i]);
+        }
+      }
+    }
+  }
 
-  void grid_piece_rendata::render() const
+  void octtree_piece_rendata::render()
   {
+    if(m_bNeedUpdateDiscRens)
+    {
+      update_active_disc_rens();
+      m_bNeedUpdateDiscRens = false;
+    }
+
     glPushMatrix();
     glPushAttrib ( GL_ENABLE_BIT );
 
-    glScalef ( 2.0,2.0,2.0 );
-    glTranslatef ( -0.5,0.0,-0.5 );
-
-    if ( m_bShowSurface && ren_surf)
-    {
-      glColor3f ( 0.75,0.75,0.75 );
-      ren_surf->render();
-    }
-
     glDisable ( GL_LIGHTING );
 
-    glTranslatef ( 0.0,0.02,0.0 );
-
-    if ( m_bShowGrad && ren_grad[0] && ren_grad[1])
+    if(m_bShowGrad)
     {
-      glColor3f ( 0.5,0.0,0.5 );
-      ren_grad[0]->render();
-
-      glColor3f ( 0.0,0.5,0.5 );
-      ren_grad[1]->render();
-
-    }
-
-    glPointSize ( 4.0 );
-
-    if ( m_bShowCps)
-    {
-      for(uint i = 0 ; i < 3;++i)
+      for(uint i = 0 ; i < gc_grid_dim; ++i)
       {
-        if(ren_cp[i])
+        if(ren_grad[i])
         {
-          glColor3dv(g_grid_cp_colors[i].data());
+          glColor3dv ( g_grid_grad_colors[i].data() );
 
-          ren_cp[i]->render();
-
-          if(ren_cp_labels[i] && m_bShowCpLabels)
-            ren_cp_labels[i]->render();
+          ren_grad[i]->render();
         }
       }
     }
 
+    glPointSize ( 4.0 );
+
+    for(uint i = 0 ; i < gc_grid_dim+1;++i)
+    {
+      if(ren_cp[i]&& (m_bShowCps[i]||m_bShowAllCps))
+      {
+        glColor3dv(g_grid_cp_colors[i].data());
+
+        ren_cp[i]->render();
+
+        if(ren_cp_labels[i] && m_bShowCpLabels)
+          ren_cp_labels[i]->render();
+      }
+    }
+
+
     if ( m_bShowCancCps)
     {
-      for(uint i = 0 ; i < 3;++i)
+      for(uint i = 0 ; i < gc_grid_dim+1;++i)
       {
         if(ren_canc_cp[i])
         {
@@ -396,27 +642,189 @@ namespace grid
       }
     }
 
-    if ( m_bShowMsGraph && ren_cp_conns[0] && ren_cp_conns[1])
+    if (m_bShowMsGraph)
     {
-      glColor3f ( 0.0,0.5,1.0 );
-      ren_cp_conns[0]->render();
+      for(uint i = 0 ; i < gc_grid_dim;++i)
+      {
+        if(ren_cp_conns[i])
+        {
+          glColor3dv(g_grid_cp_conn_colors[i].data());
 
-      glColor3f ( 1.0,0.5,0.0 );
-      ren_cp_conns[1]->render();
-
+          ren_cp_conns[i]->render();
+        }
+      }
     }
 
-    if ( m_bShowCancMsGraph&& ren_canc_cp_conns[0] && ren_canc_cp_conns[1])
+    if (m_bShowCancMsGraph)
     {
-      glColor3f ( 0.0,0.5,1.0 );
-      ren_canc_cp_conns[0]->render();
+      for(uint i = 0 ; i < gc_grid_dim;++i)
+      {
+        if(ren_canc_cp_conns[i])
+        {
+          glColor3dv(g_grid_cp_conn_colors[i].data());
 
-      glColor3f ( 1.0,0.5,0.0 );
-      ren_canc_cp_conns[1]->render();
-
+          ren_canc_cp_conns[i]->render();
+        }
+      }
     }
+
+    for(uint i = 0 ; i < disc_rds.size();++i)
+    {
+      disc_rds[i]->render();
+    }
+
 
     glPopAttrib();
     glPopMatrix();
   }
+
+  int octtree_piece_rendata::rows()
+  {
+    return disc_rds.size();
+  }
+  int octtree_piece_rendata::columns()
+  {
+    return 6;
+  }
+  bool octtree_piece_rendata::exchange_data
+      (const data_index_t &idx,boost::any &v)
+  {
+    bool need_update = false;
+
+    bool is_read     = v.empty();
+
+    int i = idx[0];
+
+    switch(i)
+    {
+    case 0:
+      return s_exchange_ro(disc_rds[idx[1]]->cellid.to_string(),v);
+    case 1:
+      return s_exchange_ro((int)disc_rds[idx[1]]->index,v);
+    case 2:
+    case 3:
+      need_update =  s_exchange_rw(disc_rds[idx[1]]->show[i%2],v);break;
+    case 4:
+    case 5:
+      return s_exchange_rw(disc_rds[idx[1]]->color[i%2],v);
+    };
+
+    if(need_update && is_read == false )
+      m_bNeedUpdateDiscRens = true;
+
+    return need_update;
+
+  }
+
+  boost::any octtree_piece_rendata::get_header(int i)
+  {
+    switch(i)
+    {
+    case 0: return std::string("cellid");
+    case 1: return std::string("index");
+    case 2: return std::string("des disc");
+    case 3: return std::string("asc disc");
+    case 4: return std::string("des disc color");
+    case 5: return std::string("asc disc color");
+    }
+    throw std::logic_error("invalid index");
+  }
+
+  disc_rendata_t::disc_rendata_t(cellid_t c,uint i):cellid(c),index(i)
+  {
+    color[0] = g_disc_colors[1][index];
+    color[1] = g_disc_colors[0][index];
+
+    show[0] =false; ren[0] =NULL;
+    show[1] =false; ren[1] =NULL;
+  }
+
+  disc_rendata_t::~disc_rendata_t()
+  {
+    show[0] =false;
+    show[1] =false;
+
+    update(NULL);
+
+  }
+
+  void disc_rendata_t::render()
+  {
+    for(uint dir = 0 ; dir<2;++dir)
+    {
+
+      s_cell_shaders[dir]->use();
+
+      if(show[dir])
+      {
+        glColor3dv(g_grid_cp_colors[index].data());
+
+        glBegin(GL_POINTS);
+        glVertex3dv(cell_to_vertex(cellid).data());
+        glEnd();
+
+        glColor3dv(color[dir].data());
+
+        ren[dir]->render();
+      }
+
+      s_cell_shaders[dir]->disable();
+    }
+  }
+
+  bool disc_rendata_t::update(mscomplex_t *msc )
+  {
+    uint ret = false;
+
+    for(uint dir = 0 ; dir<2;++dir)
+    {
+      if(show[dir] && this->ren[dir] == NULL && msc)
+      {
+        ensure_cellid_critical(msc,cellid);
+
+        critpt_t *cp = msc->m_cps[msc->m_id_cp_map[cellid]];
+
+        std::set<cellid_t> vset;
+
+        for(uint j = 0 ; j < cp->contrib[dir].size();++j)
+        {
+          critpt_t *cp_contrib = msc->m_cps[cp->contrib[dir][j]];
+
+          if(cp_contrib->index != cp->index)
+            throw std::logic_error("contrib and cp must have same idx");
+
+          for(uint i = 0; i < cp_contrib->disc[dir].size(); ++i)
+          {
+            cellid_t c = cp_contrib->disc[dir][i];
+
+            if(vset.count(c) == 0)
+              vset.insert(c);
+          }
+        }
+
+        std::vector<glutils::vertex_t> vlist(vset.size());
+
+        std::transform(vset.begin(),vset.end(),vlist.begin(),cell_to_vertex);
+
+        ren[dir] = glutils::create_buffered_points_ren
+                   (glutils::make_buf_obj(vlist),
+                    glutils::make_buf_obj(),
+                    glutils::make_buf_obj());
+
+        ret = true;
+      }
+
+      if(!show[dir] && this->ren[dir] != NULL )
+      {
+        delete ren[dir];
+
+        ren[dir] = NULL;
+
+        ret = true;
+
+      }
+    }
+    return ret;
+  }
+
 }
