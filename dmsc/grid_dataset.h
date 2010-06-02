@@ -48,11 +48,10 @@ namespace grid
     };
 
     typedef int8_t                            cell_flag_t;
-    typedef boost::multi_array<cell_fn_t,2>   varray_t;
-    typedef boost::multi_array<cellid_t,2>    cellpair_array_t;
-    typedef boost::multi_array<cell_flag_t,2> cellflag_array_t;
+    typedef boost::multi_array<cellid_t,gc_grid_dim>    cellpair_array_t;
+    typedef boost::multi_array<cell_flag_t,gc_grid_dim> cellflag_array_t;
 
-    typedef boost::multi_array_ref<cell_fn_t,2>   varray_ref_t;
+    typedef boost::multi_array_ref<cell_fn_t,gc_grid_dim>   varray_ref_t;
 
   public:
 

@@ -7,8 +7,7 @@
 #include <glutils.h>
 #include <cpputils.h>
 
-
-
+#include <boost/multi_array.hpp>
 
 namespace grid
 {
@@ -43,6 +42,8 @@ namespace grid
 
     typedef boost::shared_ptr<glutils::renderable_t> renderable_sp_t;
 
+    typedef std::set<boost::shared_ptr<disc_rendata_t> > disc_rendata_sp_set_t;
+
     datapiece_t * dp;
 
     // set externally to control what is rendered
@@ -69,7 +70,7 @@ namespace grid
 
     std::vector<boost::shared_ptr<disc_rendata_t> > disc_rds;
 
-    std::set<boost::shared_ptr<disc_rendata_t> >    active_disc_rens;
+    disc_rendata_sp_set_t    active_disc_rens;
 
 
     void create_disc_rds();
@@ -80,7 +81,9 @@ namespace grid
     void create_canc_cp_rens(const rect_t &roi);
     void create_grad_rens(const rect_t &roi);
 
-    void render() ;
+    void render_msgraph_data() ;
+
+    void render_dataset_data() ;
 
     octtree_piece_rendata(datapiece_t *);
 
@@ -112,6 +115,7 @@ namespace grid
     bool                                   m_bCenterToRoi;
 
     data_manager_t *                       m_gdm;
+    uint                                   m_rawdata_texture;
 
   public:
 
@@ -121,6 +125,8 @@ namespace grid
 
     // ensure normalization of l and u, l < u , dim in {0,1,2}
     void set_roi_dim_range_nrm(double l,double u,int dim);
+
+    bool init_rawdata_texture();
 
   private:
 

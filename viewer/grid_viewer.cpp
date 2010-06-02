@@ -4,6 +4,7 @@
 
 #include <boost/algorithm/string_regex.hpp>
 #include <boost/lambda/lambda.hpp>
+#include <boost/lambda/bind.hpp>
 #include <boost/static_assert.hpp>
 
 #include <GL/glew.h>
@@ -20,9 +21,9 @@
 
 #include <shadersources.h>
 
-
-
 #define static_assert BOOST_STATIC_ASSERT
+
+const int s_rawdata_texture_no = 0;
 
 GLSLProgram * s_cell_shaders[grid::GRADDIR_COUNT] = {NULL,NULL};
 
@@ -43,13 +44,13 @@ glutils::color_t g_disc_colors[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
 {
   {
     glutils::color_t(0.15,0.45,0.35 ),
-    glutils::color_t(0.25,0.15,0.75 ),
+    glutils::color_t(0.85,0.65,0.75 ),
     glutils::color_t(0.0,0.0,0.0 ),
   },
 
 {
     glutils::color_t(0.0,0.0,0.0 ),
-    glutils::color_t(0.35,0.25,0.65 ),
+    glutils::color_t(0.65,0.95,0.45 ),
     glutils::color_t(0.15,0.25,0.75 ),
   },
 };
@@ -62,11 +63,11 @@ glutils::color_t g_grid_cp_conn_colors[grid::gc_grid_dim] =
 
 glutils::color_t g_roiaabb_color = glutils::color_t(0.85,0.75,0.65);
 
-const char * shader_consts[grid::GRADDIR_COUNT]
-    = {"const float even_sz = 0.1;"\
-       "const float odd_sz  = 1.0;",
-       "const float even_sz = 1.0;"\
-       "const float odd_sz  = 0.1;"};
+const char * shader_consts[grid::GRADDIR_COUNT]=
+{
+  "const int is_dual = 0;",
+  "const int is_dual = 1;",
+};
 
 namespace grid
 {
@@ -76,22 +77,27 @@ namespace grid
     return glutils::vertex_t(c[0],0,c[1]);
   }
 
+  glutils::vertex_t cp_to_vertex(mscomplex_t *msc,uint i)
+  {
+    cellid_t &c = msc->m_cps[i]->cellid;
+
+    return glutils::vertex_t(c[0],msc->m_cps[i]->fn,c[1]);
+  }
+
   void disc_rendata_t::init()
   {
+
     for(uint i = 0 ;i < GRADDIR_COUNT;++i)
     {
-
       if(s_cell_shaders[i] != NULL )
         continue;
-
 
       std::string geom_glsl(cell_shader_geom_glsl);
 
       boost::replace_regex
           ( geom_glsl,
             boost::regex("//HEADER_REPLACE_BEGIN(.*)//HEADER_REPLACE_END"),
-            std::string(shader_consts[i]) );
-
+            std::string(shader_consts[i]));
 
       s_cell_shaders[i] = GLSLProgram::createFromSourceStrings
                           (cell_shader_vert_glsl,
@@ -127,7 +133,6 @@ namespace grid
       m_size(gdm->m_size),m_scale_factor(0),
       m_bRebuildRens(true),m_bShowRoiBB(false),m_bCenterToRoi(false),
       m_gdm(gdm)
-
   {
     m_roi = rect_t(cellid_t::zero,(m_size-cellid_t::one)*2);
 
@@ -146,6 +151,8 @@ namespace grid
     m_grid_piece_rens.clear();
 
     disc_rendata_t::cleanup();
+
+    glDeleteTextures( 1, &m_rawdata_texture );
 
     delete m_gdm;
   }
@@ -179,7 +186,7 @@ namespace grid
     glEnable(GL_NORMALIZE);
 
     glScalef(m_scale_factor,
-             m_scale_factor,
+             0.125,
              m_scale_factor);
 
     if(m_bCenterToRoi)
@@ -207,7 +214,27 @@ namespace grid
 
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
     {
-      m_grid_piece_rens[i]->render();
+      m_grid_piece_rens[i]->render_msgraph_data();
+    }
+
+    if(m_rawdata_texture != 0 )
+    {
+      glEnable ( GL_TEXTURE_RECTANGLE_ARB );
+
+      glActiveTexture ( GL_TEXTURE0 + s_rawdata_texture_no );
+      glBindTexture ( GL_TEXTURE_RECTANGLE_ARB, m_rawdata_texture );
+    }
+
+    for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
+    {
+      m_grid_piece_rens[i]->render_dataset_data();
+    }
+
+    if(m_rawdata_texture != 0 )
+    {
+      glBindTexture ( GL_TEXTURE_RECTANGLE_ARB, 0);
+
+      glDisable ( GL_TEXTURE_RECTANGLE_ARB );
     }
 
     glPopAttrib();
@@ -228,6 +255,8 @@ namespace grid
     glutils::init();
 
     disc_rendata_t::init();
+
+    init_rawdata_texture();
 
     m_scale_factor = 0.5/ std::max((double) *std::max_element
                                    (m_size.begin(),m_size.end())-1.0,1.0);
@@ -250,10 +279,46 @@ namespace grid
     }
   }
 
+  bool grid_viewer_t::init_rawdata_texture()
+  {
+    std::ifstream ifs;
+
+    ifs.open(m_gdm->m_filename.c_str(),std::ifstream::binary );
+
+    if(!ifs.is_open())
+      return false;
+
+    cell_fn_t * pData = new cell_fn_t[m_gdm->m_size[0]*m_gdm->m_size[1]];
+
+    ifs.read ( reinterpret_cast<char *> ( pData),
+               sizeof ( cell_fn_t)*m_gdm->m_size[0]*m_gdm->m_size[1]);
+
+    ifs.close();
+
+    glGenTextures ( 1, &m_rawdata_texture );
+
+    glBindTexture ( GL_TEXTURE_RECTANGLE_ARB, m_rawdata_texture );
+
+    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_FLOAT_R32_NV,
+                 m_gdm->m_size[0], m_gdm->m_size[1], 0,
+                 GL_RED, GL_FLOAT, pData);
+
+    glBindTexture ( GL_TEXTURE_RECTANGLE_ARB, 0 );
+
+    delete []pData;
+
+    return true;
+  }
+
   int grid_viewer_t::rows()
   {
     return m_grid_piece_rens.size();
-
   }
   int grid_viewer_t::columns()
   {
@@ -324,8 +389,7 @@ namespace grid
 
     for(uint i = 0; i < dp->msgraph->m_cps.size(); ++i)
     {
-      cellid_t c = (dp->msgraph->m_cps[i]->cellid);
-      cp_loc.push_back(glutils::vertex_t(c[0],0,c[1]));
+      cp_loc.push_back(cp_to_vertex(dp->msgraph,i));
     }
 
     cp_loc_bo = glutils::make_buf_obj(cp_loc);
@@ -360,7 +424,7 @@ namespace grid
       if(!dp->msgraph->m_cps[i]->is_paired)
       {
         crit_labels[index].push_back(ss.str());
-        crit_label_locations[index].push_back(cell_to_vertex(c) );
+        crit_label_locations[index].push_back(cp_to_vertex(dp->msgraph,i));
         crit_pt_idxs[index].push_back(i);
       }
     }
@@ -437,7 +501,7 @@ namespace grid
 
 
       canc_cp_labels[index].push_back(c.to_string());
-      canc_cp_label_locations[index].push_back(cell_to_vertex(c) );
+      canc_cp_label_locations[index].push_back(cp_to_vertex(dp->msgraph,i)) ;
       canc_cp_idxs[index].push_back(i);
 
     }
@@ -571,43 +635,21 @@ namespace grid
     {
       if(disc_rds[i]->update(dp->msgraph))
       {
-        if(active_disc_rens.count(disc_rds[i]) == 0)
-        {
-          active_disc_rens.insert(disc_rds[i]);
-        }
-        else
-        {
-          active_disc_rens.erase(disc_rds[i]);
-        }
+        active_disc_rens.insert(disc_rds[i]);
+      }
+      else
+      {
+        active_disc_rens.erase(disc_rds[i]);
       }
     }
   }
 
-  void octtree_piece_rendata::render()
+  void octtree_piece_rendata::render_msgraph_data()
   {
-    if(m_bNeedUpdateDiscRens)
-    {
-      update_active_disc_rens();
-      m_bNeedUpdateDiscRens = false;
-    }
-
     glPushMatrix();
     glPushAttrib ( GL_ENABLE_BIT );
 
     glDisable ( GL_LIGHTING );
-
-    if(m_bShowGrad)
-    {
-      for(uint i = 0 ; i < gc_grid_dim; ++i)
-      {
-        if(ren_grad[i])
-        {
-          glColor3dv ( g_grid_grad_colors[i].data() );
-
-          ren_grad[i]->render();
-        }
-      }
-    }
 
     glPointSize ( 4.0 );
 
@@ -668,14 +710,46 @@ namespace grid
       }
     }
 
-    for(uint i = 0 ; i < disc_rds.size();++i)
+    glPopAttrib();
+    glPopMatrix();
+  }
+
+  void octtree_piece_rendata::render_dataset_data()
+  {
+    if(m_bNeedUpdateDiscRens)
     {
-      disc_rds[i]->render();
+      update_active_disc_rens();
+      m_bNeedUpdateDiscRens = false;
+    }
+
+    glPushMatrix();
+    glPushAttrib ( GL_ENABLE_BIT );
+
+    glDisable ( GL_LIGHTING );
+
+    if(m_bShowGrad)
+    {
+      for(uint i = 0 ; i < gc_grid_dim; ++i)
+      {
+        if(ren_grad[i])
+        {
+          glColor3dv ( g_grid_grad_colors[i].data() );
+
+          ren_grad[i]->render();
+        }
+      }
     }
 
 
+    for(disc_rendata_sp_set_t::iterator it = active_disc_rens.begin();
+        it != active_disc_rens.end() ; ++it)
+    {
+      (*it)->render();
+    }
+
     glPopAttrib();
     glPopMatrix();
+
   }
 
   int octtree_piece_rendata::rows()
@@ -752,8 +826,9 @@ namespace grid
   {
     for(uint dir = 0 ; dir<2;++dir)
     {
-
       s_cell_shaders[dir]->use();
+
+      s_cell_shaders[dir]->sendUniform ( "rawdata_texture",s_rawdata_texture_no );
 
       if(show[dir])
       {
@@ -772,9 +847,10 @@ namespace grid
     }
   }
 
-  bool disc_rendata_t::update(mscomplex_t *msc )
+  bool disc_rendata_t::update(mscomplex_t *msc)
   {
-    uint ret = false;
+
+    using namespace boost::lambda;
 
     for(uint dir = 0 ; dir<2;++dir)
     {
@@ -811,7 +887,6 @@ namespace grid
                     glutils::make_buf_obj(),
                     glutils::make_buf_obj());
 
-        ret = true;
       }
 
       if(!show[dir] && this->ren[dir] != NULL )
@@ -820,11 +895,10 @@ namespace grid
 
         ren[dir] = NULL;
 
-        ret = true;
-
       }
     }
-    return ret;
+
+    return (show[0] || show[1]);
   }
 
 }

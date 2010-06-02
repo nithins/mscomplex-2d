@@ -1,13 +1,18 @@
 #version 120
 #extension GL_EXT_geometry_shader4 : enable
 #extension GL_EXT_gpu_shader4 : enable
+#extension GL_ARB_texture_rectangle: enable
 
 //HEADER_REPLACE_BEGIN
 
-const float even_sz = 0.2;
-const float odd_sz  = 0.6;
+const int is_dual = 1;
 
 //HEADER_REPLACE_END
+
+const float small_sz = 0.1;
+const float big_sz   = 1.0;
+
+uniform sampler2DRect rawdata_texture;
 
 vec4 diffuse;
 vec4 ambient;
@@ -49,18 +54,23 @@ void set_light_constants()
   halfVector = normalize(gl_LightSource[0].halfVector.xyz);
 }
 
-vec3[8] get_box(vec3 c)
+vec3[4] get_quad(vec3 c)
 {
-  vec3[8] p;  int pos = 0;  ivec3 i;  vec3  sz;
-
-  sz.x = (((int(c.x))&1) == 1)?(odd_sz):(even_sz);
-  sz.y = min(odd_sz,even_sz);
-  sz.z = (((int(c.z))&1) == 1)?(odd_sz):(even_sz);
+  vec3[4] p;  int pos = 0;  ivec3 i = ivec3(0,0,0);ivec3 ex = ivec3(0,0,0); vec3  sz = vec3(0,0,0);
+  
+  ex.x     = (int(c.x)&1)^is_dual;
+  ex.z     = (int(c.z)&1)^is_dual;
+  
+  sz.x     = (ex.x == 1)?(big_sz):(small_sz);
+  sz.z     = (ex.z == 1)?(big_sz):(small_sz);
 
   for(i[2] = -1 ; i[2] <= 1 ;i[2]+=2)
-    for(i[1] = -1 ; i[1] <= 1 ;i[1]+=2)
       for(i[0] = -1 ; i[0] <= 1 ;i[0]+=2)
-        p[pos++] = c+i*sz;
+      {
+        p[pos] 	 = c+i*sz;
+        p[pos].y = texture2DRect(rawdata_texture, ((c+i*ex).xz)/2).x;
+        pos++;
+      }
 
   return p;
 }
@@ -81,21 +91,14 @@ void draw_quad_post_xfm(vec4 p1,vec4 p2,vec4 p3,vec4 p4)
   EndPrimitive();
 }
 
-void draw_box(vec3[8] b)
+void draw_quad(vec3[4] b)
 {
-  vec4[8] xb;
+  vec4[4] xb;
 
-  for ( int i = 0 ; i <8 ; ++i)
+  for ( int i = 0 ; i <4 ; ++i)
     xb[i] = (gl_ModelViewProjectionMatrix*vec4(b[i],1.0));
 
-//   draw_quad_post_xfm(xb[1],xb[0],xb[3],xb[2]);
-//   draw_quad_post_xfm(xb[7],xb[6],xb[5],xb[4]);
-
-  draw_quad_post_xfm(xb[0],xb[1],xb[4],xb[5]);
-  draw_quad_post_xfm(xb[3],xb[2],xb[7],xb[6]);
-
-/*  draw_quad_post_xfm(xb[0],xb[4],xb[2],xb[6]);
-  draw_quad_post_xfm(xb[5],xb[1],xb[7],xb[3]);*/
+  draw_quad_post_xfm(xb[1],xb[0],xb[3],xb[2]);
 }
 
 void main()
@@ -106,6 +109,6 @@ void main()
   {
     in_color = gl_FrontColorIn[i];
 
-    draw_box(get_box(gl_PositionIn[i].xyz));
+    draw_quad(get_quad(gl_PositionIn[i].xyz));
   } 
 }
