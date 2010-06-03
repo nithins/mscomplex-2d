@@ -26,7 +26,7 @@ find_package(Qxt REQUIRED)
 
 find_package(PythonInterp REQUIRED)
 
-# find_package(OpenCL REQUIRED)
+find_package(OpenCL REQUIRED)
 
 add_subdirectory(utls)
 
