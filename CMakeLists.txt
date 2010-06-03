@@ -74,8 +74,10 @@ set(viewer_UIS
 QT4_WRAP_UI(viewer_UI_SRCS ${viewer_UIS})
 
 file(GLOB viewer_shader_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cell_shader_geom.glsl
-  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cell_shader_vert.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/geom_1mfold.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/vert_1mfold.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/geom_2mfold.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/vert_2mfold.glsl
   )
 
 set(viewer_shader_SRCS

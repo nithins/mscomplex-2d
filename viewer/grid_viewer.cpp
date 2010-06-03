@@ -25,7 +25,42 @@
 
 const int s_rawdata_texture_no = 0;
 
-GLSLProgram * s_cell_shaders[grid::GRADDIR_COUNT] = {NULL,NULL};
+
+struct s_shader_data_t
+{
+  enum eSourceType { ST_VERT,ST_GEOM,ST_FRAG,ST_COUNT};
+
+  GLSLProgram * prog;
+
+  const char * source[ST_COUNT];
+  const char * header[ST_COUNT];
+
+  uint geom_in;
+  uint geom_out;
+};
+
+const char * s_is_dual_str[grid::GRADDIR_COUNT]=
+{
+  "const int is_dual = 0;",
+  "const int is_dual = 1;",
+};
+
+const char * s_shader_header_regex =
+    "//HEADER_REPLACE_BEGIN(.*)//HEADER_REPLACE_END";
+
+s_shader_data_t  s_cell_shaders[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
+{
+  {
+    {NULL,{vert_2mfold_glsl,geom_2mfold_glsl,NULL},{NULL,s_is_dual_str[0],NULL},GL_POINTS,GL_TRIANGLES},
+    {NULL,{vert_1mfold_glsl,geom_1mfold_glsl,NULL},{NULL,s_is_dual_str[0],NULL},GL_POINTS,GL_LINE_STRIP},
+    {NULL,{vert_2mfold_glsl,geom_2mfold_glsl,NULL},{NULL,s_is_dual_str[0],NULL},GL_POINTS,GL_TRIANGLES},
+  },
+{
+    {NULL,{vert_2mfold_glsl,geom_2mfold_glsl,NULL},{NULL,s_is_dual_str[1],NULL},GL_POINTS,GL_TRIANGLES},
+    {NULL,{vert_1mfold_glsl,geom_1mfold_glsl,NULL},{NULL,s_is_dual_str[1],NULL},GL_POINTS,GL_LINE_STRIP},
+    {NULL,{vert_2mfold_glsl,geom_2mfold_glsl,NULL},{NULL,s_is_dual_str[1],NULL},GL_POINTS,GL_TRIANGLES},
+  },
+};
 
 glutils::color_t g_grid_cp_colors[grid::gc_grid_dim+1] =
 {
@@ -63,12 +98,6 @@ glutils::color_t g_grid_cp_conn_colors[grid::gc_grid_dim] =
 
 glutils::color_t g_roiaabb_color = glutils::color_t(0.85,0.75,0.65);
 
-const char * shader_consts[grid::GRADDIR_COUNT]=
-{
-  "const int is_dual = 0;",
-  "const int is_dual = 1;",
-};
-
 namespace grid
 {
 
@@ -86,45 +115,70 @@ namespace grid
 
   void disc_rendata_t::init()
   {
-
-    for(uint i = 0 ;i < GRADDIR_COUNT;++i)
+    for(uint k = 0 ;k < GRADDIR_COUNT;++k)
     {
-      if(s_cell_shaders[i] != NULL )
-        continue;
+      for(uint j = 0 ;j < gc_grid_dim+1;++j)
+      {
+        if(s_cell_shaders[k][j].prog != NULL )
+          continue;
 
-      std::string geom_glsl(cell_shader_geom_glsl);
+        std::string shader_source[s_shader_data_t::ST_COUNT];
 
-      boost::replace_regex
-          ( geom_glsl,
-            boost::regex("//HEADER_REPLACE_BEGIN(.*)//HEADER_REPLACE_END"),
-            std::string(shader_consts[i]));
+        for(uint i = 0 ;i < s_shader_data_t::ST_COUNT;++i)
+        {
+          if(s_cell_shaders[k][j].source[i] != NULL)
+            shader_source[i] = s_cell_shaders[k][j].source[i];
 
-      s_cell_shaders[i] = GLSLProgram::createFromSourceStrings
-                          (cell_shader_vert_glsl,
-                           geom_glsl,
-                           std::string(),
-                           GL_POINTS,GL_TRIANGLES);
+          if(s_cell_shaders[k][j].header[i] != NULL)
+          {
+            boost::replace_regex
+                ( shader_source[i],boost::regex(s_shader_header_regex),
+                  std::string(s_cell_shaders[k][j].header[i]));
+          }
+        }
 
-      std::string log;
+        s_cell_shaders[k][j].prog =
+            GLSLProgram::createFromSourceStrings
+            (shader_source[0],shader_source[1],shader_source[2],
+             s_cell_shaders[k][j].geom_in,s_cell_shaders[k][j].geom_out);
 
-      s_cell_shaders[i]->GetProgramLog ( log );
+        std::string log;
 
-      if(log.size() !=0 )
-        std::cout<<"shader log ::\n"<<log<<"\n";
+        s_cell_shaders[k][j].prog->GetProgramLog ( log );
+
+        if(log.size() !=0 )
+        {
+          std::stringstream ss;
+
+          for(uint i = 0 ;i < s_shader_data_t::ST_COUNT;++i)
+          {
+            ss<<"shader no"<<i<<"\n";
+
+            ss<<shader_source[i]<<"\n";
+          }
+
+          ss<<"shader log ::\n"<<log<<"\n";
+
+          throw std::runtime_error(ss.str());
+        }
+      }
     }
 
   }
 
   void disc_rendata_t::cleanup()
   {
-    for(uint i = 0 ;i < GRADDIR_COUNT;++i)
+    for(uint k = 0 ;k < GRADDIR_COUNT;++k)
     {
-      if(s_cell_shaders[i] != NULL )
-        continue;
+      for(uint j = 0 ;j < gc_grid_dim+1;++j)
+      {
+        if(s_cell_shaders[k][j].prog == NULL )
+          continue;
 
-      delete s_cell_shaders[i];
+        delete s_cell_shaders[k][j].prog;
 
-      s_cell_shaders[i] = NULL;
+        s_cell_shaders[k][j].prog = NULL;
+      }
     }
   }
 
@@ -826,12 +880,12 @@ namespace grid
   {
     for(uint dir = 0 ; dir<2;++dir)
     {
-      s_cell_shaders[dir]->use();
-
-      s_cell_shaders[dir]->sendUniform ( "rawdata_texture",s_rawdata_texture_no );
-
       if(show[dir])
       {
+        s_cell_shaders[dir][index].prog->use();
+
+        s_cell_shaders[dir][index].prog->sendUniform ( "rawdata_texture",s_rawdata_texture_no );
+
         glColor3dv(g_grid_cp_colors[index].data());
 
         glBegin(GL_POINTS);
@@ -841,9 +895,9 @@ namespace grid
         glColor3dv(color[dir].data());
 
         ren[dir]->render();
-      }
 
-      s_cell_shaders[dir]->disable();
+        s_cell_shaders[dir][index].prog->disable();
+      }
     }
   }
 
