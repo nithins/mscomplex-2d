@@ -98,6 +98,11 @@ glutils::color_t g_grid_cp_conn_colors[grid::gc_grid_dim] =
 
 glutils::color_t g_roiaabb_color = glutils::color_t(0.85,0.75,0.65);
 
+double g_max_cp_size  = 8.0;
+double g_max_cp_raise = 0.025;
+
+GLSLProgram * s_grad_shader = NULL;
+
 namespace grid
 {
 
@@ -182,10 +187,40 @@ namespace grid
     }
   }
 
-  grid_viewer_t::grid_viewer_t
-      (data_manager_t * gdm):
+  void octtree_piece_rendata::init()
+  {
+    if(s_grad_shader != NULL)
+      return;
+
+    s_grad_shader = GLSLProgram::createFromSourceStrings
+                    (grad_vert_glsl,grad_geom_glsl,std::string(),
+                     GL_LINES,GL_TRIANGLES);
+
+    std::string log;
+
+    s_grad_shader->GetProgramLog(log);
+
+    if(log.size() != 0 )
+      throw std::runtime_error("******grad_shader compile error*******\n"+log);
+
+  }
+
+  void octtree_piece_rendata::cleanup()
+  {
+    if(s_grad_shader == NULL)
+      return;
+
+    delete s_grad_shader;
+
+    s_grad_shader = NULL;
+  }
+
+
+  viewer_t::viewer_t
+      (data_manager_t * gdm,std::string ef):
       m_size(gdm->m_size),m_scale_factor(0),
       m_bRebuildRens(true),m_bShowRoiBB(false),m_bCenterToRoi(false),
+      m_cp_raise(0.0),m_cp_size(0.5),
       m_gdm(gdm)
   {
     m_roi = rect_t(cellid_t::zero,(m_size-cellid_t::one)*2);
@@ -195,23 +230,29 @@ namespace grid
 
     m_roi_base_pt  = ((m_roi.upper_corner() +  m_roi.lower_corner())/2);
 
+    m_elevation_filename = ef;
+
   }
 
-  grid_viewer_t::~grid_viewer_t()
+  viewer_t::~viewer_t()
   {
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
       delete m_grid_piece_rens[i];
 
     m_grid_piece_rens.clear();
 
+    glutils::clear();
+
     disc_rendata_t::cleanup();
+
+    octtree_piece_rendata::cleanup();
 
     glDeleteTextures( 1, &m_rawdata_texture );
 
     delete m_gdm;
   }
 
-  void grid_viewer_t::set_roi_dim_range_nrm(double l,double u,int dim)
+  void viewer_t::set_roi_dim_range_nrm(double l,double u,int dim)
   {
     if(!(l<u && 0.0 <= l && u <=1.0 && 0<=dim && dim < gc_grid_dim))
       return;
@@ -226,7 +267,7 @@ namespace grid
     m_roi_base_pt  = ((m_roi.upper_corner() +  m_roi.lower_corner())/2);
   }
 
-  int grid_viewer_t::render()
+  int viewer_t::render()
   {
     if(m_bRebuildRens)
     {
@@ -244,13 +285,9 @@ namespace grid
              m_scale_factor);
 
     if(m_bCenterToRoi)
-      glTranslatef(-m_roi_base_pt[0],
-                   0,
-                   -m_roi_base_pt[1]);
+      glTranslatef(-m_roi_base_pt[0],0,-m_roi_base_pt[1]);
     else
-      glTranslatef(std::min(-m_size[0]+1,-1),
-                   0,
-                   std::min(-m_size[1]+1,-1));
+      glTranslatef(std::min(-m_size[0]+1,-1),0,std::min(-m_size[1]+1,-1));
 
     if(m_bShowRoiBB)
     {
@@ -268,7 +305,8 @@ namespace grid
 
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
     {
-      m_grid_piece_rens[i]->render_msgraph_data();
+      m_grid_piece_rens[i]->render_msgraph_data
+          (m_cp_raise*g_max_cp_raise/0.125,m_cp_size*g_max_cp_size);
     }
 
     if(m_rawdata_texture != 0 )
@@ -281,7 +319,7 @@ namespace grid
 
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
     {
-      m_grid_piece_rens[i]->render_dataset_data();
+      m_grid_piece_rens[i]->render_dataset_data(m_cp_raise*g_max_cp_raise/0.125);
     }
 
     if(m_rawdata_texture != 0 )
@@ -294,7 +332,7 @@ namespace grid
     glPopAttrib();
   }
 
-  void grid_viewer_t::build_rens()
+  void viewer_t::build_rens()
   {
     for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
     {
@@ -304,11 +342,13 @@ namespace grid
     }
   }
 
-  void grid_viewer_t::init()
+  void viewer_t::init()
   {
     glutils::init();
 
     disc_rendata_t::init();
+
+    octtree_piece_rendata::init();
 
     init_rawdata_texture();
 
@@ -333,11 +373,11 @@ namespace grid
     }
   }
 
-  bool grid_viewer_t::init_rawdata_texture()
+  bool viewer_t::init_rawdata_texture()
   {
     std::ifstream ifs;
 
-    ifs.open(m_gdm->m_filename.c_str(),std::ifstream::binary );
+    ifs.open(m_elevation_filename.c_str(),std::ifstream::binary );
 
     if(!ifs.is_open())
       return false;
@@ -370,53 +410,51 @@ namespace grid
     return true;
   }
 
-  int grid_viewer_t::rows()
+  configurable_t::data_index_t viewer_t::dim()
   {
-    return m_grid_piece_rens.size();
+    return data_index_t(10,m_grid_piece_rens.size());
   }
-  int grid_viewer_t::columns()
+  bool viewer_t::exchange_field(const data_index_t &i,boost::any &v)
   {
-    return 10;
-  }
-  bool grid_viewer_t::exchange_data(const data_index_t &idx,boost::any &v)
-  {
+    octtree_piece_rendata * dprd = m_grid_piece_rens[i[1]];
 
-    switch(idx[0])
+    switch(i[0])
     {
-    case 0: return s_exchange_ro(m_grid_piece_rens[idx[1]]->dp->label(),v);
-    case 1: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowAllCps,v);
-    case 2: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCps[0],v);
-    case 3: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCps[1],v);
-    case 4: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCps[2],v);
-    case 5: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCpLabels,v);
-    case 6: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowMsGraph,v);
-    case 7: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowGrad,v);
-    case 8: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCancCps,v);
-    case 9: return s_exchange_rw(m_grid_piece_rens[idx[1]]->m_bShowCancMsGraph,v);
+    case 0: return s_exchange_data_ro(dprd->dp->label(),v);
+    case 1: return s_exchange_data_rw(dprd->m_bShowAllCps,v);
+    case 2: return s_exchange_data_rw(dprd->m_bShowCps[0],v);
+    case 3: return s_exchange_data_rw(dprd->m_bShowCps[1],v);
+    case 4: return s_exchange_data_rw(dprd->m_bShowCps[2],v);
+    case 5: return s_exchange_data_rw(dprd->m_bShowCpLabels,v);
+    case 6: return s_exchange_data_rw(dprd->m_bShowMsGraph,v);
+    case 7: return s_exchange_data_rw(dprd->m_bShowGrad,v);
+    case 8: return s_exchange_data_rw(dprd->m_bShowCancCps,v);
+    case 9: return s_exchange_data_rw(dprd->m_bShowCancMsGraph,v);
     }
 
     throw std::logic_error("unknown index");
   }
-  boost::any grid_viewer_t::get_header(int i)
+  configurable_t::eFieldType viewer_t::exchange_header
+      (const int &i,boost::any &v)
   {
     switch(i)
     {
 
-    case 0: return std::string("oct tree piece");
-    case 1: return std::string("all cps");
-    case 2: return std::string("minima");
-    case 3: return std::string("1 saddle");
-    case 4: return std::string("maxima");
-    case 5: return std::string("cp labels");
-    case 6: return std::string("msgraph");
-    case 7: return std::string("gradient");
-    case 8: return std::string("cancelled cps");
-    case 9: return std::string("cancelled cp msgraph");
+    case 0: v =  std::string("oct tree piece"); return EFT_DATA_RO;
+    case 1: v =  std::string("all cps");return EFT_DATA_RW;
+    case 2: v =  std::string("minima");return EFT_DATA_RW;
+    case 3: v =  std::string("1 saddle");return EFT_DATA_RW;
+    case 4: v =  std::string("maxima");return EFT_DATA_RW;
+    case 5: v =  std::string("cp labels");return EFT_DATA_RW;
+    case 6: v =  std::string("msgraph");return EFT_DATA_RW;
+    case 7: v =  std::string("gradient");return EFT_DATA_RW;
+    case 8: v =  std::string("cancelled cps");return EFT_DATA_RW;
+    case 9: v =  std::string("cancelled cp msgraph");return EFT_DATA_RW;
     }
 
     throw std::logic_error("unknown index");
-  }
 
+  }
 
   octtree_piece_rendata::octtree_piece_rendata (datapiece_t * _dp):
       m_bShowAllCps(false),
@@ -698,14 +736,19 @@ namespace grid
     }
   }
 
-  void octtree_piece_rendata::render_msgraph_data()
+  void octtree_piece_rendata::render_msgraph_data
+      (double cp_raise,double cp_point_size)
   {
     glPushMatrix();
     glPushAttrib ( GL_ENABLE_BIT );
 
     glDisable ( GL_LIGHTING );
 
-    glPointSize ( 4.0 );
+    glPointSize ( cp_point_size );
+
+    glEnable(GL_POINT_SMOOTH);
+
+    glTranslatef(0,cp_raise,0);
 
     for(uint i = 0 ; i < gc_grid_dim+1;++i)
     {
@@ -768,7 +811,7 @@ namespace grid
     glPopMatrix();
   }
 
-  void octtree_piece_rendata::render_dataset_data()
+  void octtree_piece_rendata::render_dataset_data(double grad_raise)
   {
     if(m_bNeedUpdateDiscRens)
     {
@@ -779,7 +822,15 @@ namespace grid
     glPushMatrix();
     glPushAttrib ( GL_ENABLE_BIT );
 
-    glDisable ( GL_LIGHTING );
+    for(disc_rendata_sp_set_t::iterator it = active_disc_rens.begin();
+        it != active_disc_rens.end() ; ++it)
+    {
+      (*it)->render();
+    }
+
+    glTranslatef(0,grad_raise,0);
+
+    s_grad_shader->use();
 
     if(m_bShowGrad)
     {
@@ -794,66 +845,83 @@ namespace grid
       }
     }
 
-
-    for(disc_rendata_sp_set_t::iterator it = active_disc_rens.begin();
-        it != active_disc_rens.end() ; ++it)
-    {
-      (*it)->render();
-    }
+    s_grad_shader->disable();
 
     glPopAttrib();
     glPopMatrix();
 
   }
 
-  int octtree_piece_rendata::rows()
+  struct random_color_assigner
   {
-    return disc_rds.size();
+    disc_rendata_ptr_t m_drd;
+
+    int m_no;
+
+    static const uint MAX_RAND = 256;
+
+    random_color_assigner(disc_rendata_ptr_t drd,int no):m_drd(drd),m_no(no){};
+
+    void operator()()
+    {
+      for(uint c = 0 ; c < 3 ; ++c)
+        m_drd->color[m_no][c] = ((double) (rand()%MAX_RAND))/((double)MAX_RAND);
+
+    }
+  };
+
+  configurable_t::data_index_t octtree_piece_rendata::dim()
+  {
+    return data_index_t(8,disc_rds.size());
   }
-  int octtree_piece_rendata::columns()
+  bool octtree_piece_rendata::exchange_field(const data_index_t &i,boost::any &v)
   {
-    return 6;
-  }
-  bool octtree_piece_rendata::exchange_data
-      (const data_index_t &idx,boost::any &v)
-  {
-    bool need_update = false;
+    disc_rendata_ptr_t drd = disc_rds[i[1]];
 
-    bool is_read     = v.empty();
-
-    int i = idx[0];
-
-    switch(i)
+    switch(i[0])
     {
     case 0:
-      return s_exchange_ro(disc_rds[idx[1]]->cellid.to_string(),v);
+      return s_exchange_data_ro(drd->cellid.to_string(),v);
     case 1:
-      return s_exchange_ro((int)disc_rds[idx[1]]->index,v);
+      return s_exchange_data_ro((int)drd->index,v);
     case 2:
     case 3:
-      need_update =  s_exchange_rw(disc_rds[idx[1]]->show[i%2],v);break;
+      {
+        bool need_update = false;
+
+        bool is_read     = v.empty();
+
+        need_update =  s_exchange_data_rw(drd->show[i[0]%2],v);
+
+        if(need_update && is_read == false )
+          m_bNeedUpdateDiscRens = true;
+
+        return need_update;
+      }
     case 4:
     case 5:
-      return s_exchange_rw(disc_rds[idx[1]]->color[i%2],v);
+      return s_exchange_data_rw(drd->color[i[0]%2],v);
+    case 6:
+    case 7:
+      return s_exchange_action(random_color_assigner(drd,i[0]%2),v);
+
     };
 
-    if(need_update && is_read == false )
-      m_bNeedUpdateDiscRens = true;
-
-    return need_update;
-
+    throw std::logic_error("invalid index");
   }
-
-  boost::any octtree_piece_rendata::get_header(int i)
+  configurable_t::eFieldType octtree_piece_rendata::exchange_header
+      (const int &i,boost::any &v)
   {
     switch(i)
     {
-    case 0: return std::string("cellid");
-    case 1: return std::string("index");
-    case 2: return std::string("des disc");
-    case 3: return std::string("asc disc");
-    case 4: return std::string("des disc color");
-    case 5: return std::string("asc disc color");
+    case 0: v = std::string("cellid"); return EFT_DATA_RO;
+    case 1: v = std::string("index"); return EFT_DATA_RO;
+    case 2: v = std::string("des mfold"); return EFT_DATA_RW;
+    case 3: v = std::string("asc mfold"); return EFT_DATA_RW;
+    case 4: v = std::string("des mfold color"); return EFT_DATA_RW;
+    case 5: v = std::string("asc mfold color"); return EFT_DATA_RW;
+    case 6: v = std::string("rand des mflod color"); return EFT_ACTION;
+    case 7: v = std::string("rand asc mflod color"); return EFT_ACTION;
     }
     throw std::logic_error("invalid index");
   }

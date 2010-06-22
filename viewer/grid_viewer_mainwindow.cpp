@@ -6,6 +6,8 @@
 
 #include <boost/typeof/typeof.hpp>
 
+#include <logutil.h>
+
 #include <grid_viewer.h>
 #include <grid_viewer_mainwindow.h>
 #include <grid_datamanager.h>
@@ -23,27 +25,45 @@ namespace grid
   void glviewer_t::init()
   {
     setSnapshotFormat("PNG");
+
     setSnapshotQuality(100);
+
+    glEnable ( GL_CULL_FACE );
+
+    glCullFace ( GL_BACK );
+
+    glPolygonMode ( GL_FRONT, GL_FILL );
+
+    glPolygonMode ( GL_BACK, GL_LINE );
 
     m_ren->init();
   }
 
-  glviewer_t::glviewer_t(data_manager_t * gdm):m_is_recording(false)
+  glviewer_t::glviewer_t(QWidget * par):
+      m_is_recording(false),
+      m_bf_cull(true),
+      m_wireframe(false),
+      m_ren(NULL)
   {
-    m_ren = new grid_viewer_t(gdm);
+    setParent(par);
+  }
+
+  void glviewer_t::setup(data_manager_t *dm,std::string ef)
+  {
+    m_ren = new viewer_t(dm,ef);
   }
 
   glviewer_t::~glviewer_t()
   {
-    delete m_ren;
+    if(m_ren != NULL)
+      delete m_ren;
   }
 
   void glviewer_t::keyPressEvent(QKeyEvent *e)
   {
     const Qt::KeyboardModifiers modifiers = e->modifiers();
 
-    bool handled = false;
-    if ((e->key()==Qt::Key_R) && (modifiers==Qt::ControlModifier))
+    if ((e->key()==Qt::Key_C) && (modifiers==Qt::ControlModifier))
     {
       m_is_recording = !m_is_recording;
 
@@ -51,22 +71,39 @@ namespace grid
         connect(this, SIGNAL(drawFinished(bool)),this, SLOT(saveSnapshot(bool)));
       else
         disconnect(this, SIGNAL(drawFinished(bool)),this, SLOT(saveSnapshot(bool)));
-
-      std::cout<<"Recording state::"<<m_is_recording<<"\n";
-
-      handled = true;
+    }
+    else if ((e->key()==Qt::Key_R) && (modifiers==Qt::ControlModifier))
+    {
+      m_ren->m_bShowRoiBB = !m_ren->m_bShowRoiBB;
     }
     else if ((e->key()==Qt::Key_B) && (modifiers==Qt::ControlModifier))
     {
-      m_ren->m_bShowRoiBB = !m_ren->m_bShowRoiBB;
-      handled = true;
+      m_bf_cull = !m_bf_cull;
+
+      if(m_bf_cull)
+        glEnable ( GL_CULL_FACE );
+      else
+        glDisable ( GL_CULL_FACE );
+    }
+    else if ((e->key()==Qt::Key_W) && (modifiers==Qt::ControlModifier))
+    {
+      m_wireframe = !m_wireframe;
+
+      if(m_wireframe)
+        glPolygonMode ( GL_FRONT_AND_BACK, GL_LINE );
+      else
+      {
+        glPolygonMode ( GL_FRONT, GL_FILL );
+        glPolygonMode ( GL_BACK, GL_LINE );
+
+      }
+    }
+    else
+    {
+      QGLViewer::keyPressEvent(e);
     }
 
-    if (handled)
-      updateGL();
-    else
-      QGLViewer::keyPressEvent(e);
-
+    updateGL();
   }
 
   QString glviewer_t::helpString() const
@@ -79,9 +116,9 @@ namespace grid
   {
     QModelIndexList l =  datapiece_view->selectionModel()->selectedIndexes();
 
-    configurable_ctx_menu(m_viewer->m_ren,l,datapiece_view->mapToGlobal(p));
+    configurable_ctx_menu(glviewer->m_ren,l,datapiece_view->mapToGlobal(p));
 
-    m_viewer->updateGL();
+    glviewer->updateGL();
   }
 
   void viewer_mainwindow::on_critpt_view_customContextMenuRequested ( const QPoint &p )
@@ -90,10 +127,10 @@ namespace grid
     QModelIndexList l = m_cp_model_proxy->mapSelectionToSource
                         (critpt_view->selectionModel()->selection()).indexes();
 
-    configurable_ctx_menu(m_viewer->m_ren->m_grid_piece_rens[m_active_otp_idx],
+    configurable_ctx_menu(glviewer->m_ren->m_grid_piece_rens[m_active_otp_idx],
                           l,critpt_view->mapToGlobal(p));
 
-    m_viewer->updateGL();
+    glviewer->updateGL();
   }
 
   void viewer_mainwindow::on_datapiece_view_activated ( const QModelIndex & index  )
@@ -104,7 +141,7 @@ namespace grid
     m_active_otp_idx = index.row();
 
     m_cp_model->reset_configurable
-        (m_viewer->m_ren->m_grid_piece_rens[m_active_otp_idx]);
+        (glviewer->m_ren->m_grid_piece_rens[m_active_otp_idx]);
   }
 
   inline double get_nrm_value(double d_val,double d_min,double d_max)
@@ -114,17 +151,17 @@ namespace grid
 
   void viewer_mainwindow::update_roi_box(double l,double u,uint dim)
   {
-    m_viewer->m_ren->set_roi_dim_range_nrm(l,u,dim);
+    glviewer->m_ren->set_roi_dim_range_nrm(l,u,dim);
 
     if (m_clear_roi_aabb_timer->isActive() ||
-        m_viewer->m_ren->m_bShowRoiBB == false)
+        glviewer->m_ren->m_bShowRoiBB == false)
     {
-      m_viewer->m_ren->m_bShowRoiBB = true;
+      glviewer->m_ren->m_bShowRoiBB = true;
 
       m_clear_roi_aabb_timer->start();
     }
 
-    m_viewer->updateGL();
+    glviewer->updateGL();
   }
 
   void viewer_mainwindow::on_xroi_spanslider_spanChanged(int l , int u )
@@ -145,54 +182,62 @@ namespace grid
 
   }
 
-  void viewer_mainwindow::on_zroi_spanslider_spanChanged(int l , int u )
+  void viewer_mainwindow::on_cp_point_size_horizontalSlider_valueChanged ( int v )
   {
-    BOOST_AUTO(sldr,zroi_spanslider);
+    BOOST_AUTO(sldr,cp_point_size_horizontalSlider);
 
-    update_roi_box(get_nrm_value(l,sldr->minimum(),sldr->maximum()),
-                   get_nrm_value(u,sldr->minimum(),sldr->maximum()),2);
+    glviewer->m_ren->m_cp_size = get_nrm_value(v,sldr->minimum(),sldr->maximum());
 
+    glviewer->updateGL();
   }
+
+  void viewer_mainwindow::on_cp_point_raise_horizontalSlider_valueChanged ( int v )
+  {
+    BOOST_AUTO(sldr,cp_point_raise_horizontalSlider);
+
+    glviewer->m_ren->m_cp_raise = get_nrm_value(v,sldr->minimum(),sldr->maximum());
+
+    glviewer->updateGL();
+  }
+
 
   void viewer_mainwindow::on_update_roi_pushButton_clicked(bool)
   {
-    m_viewer->m_ren->m_bRebuildRens = true;
+    glviewer->m_ren->m_bRebuildRens = true;
 
-    m_viewer->updateGL();
+    glviewer->updateGL();
   }
 
   void viewer_mainwindow::on_center_to_roi_checkBox_clicked(bool state)
   {
-    m_viewer->m_ren->m_bCenterToRoi = state;
+    glviewer->m_ren->m_bCenterToRoi = state;
 
-    m_viewer->updateGL();
+    glviewer->updateGL();
   }
 
   void viewer_mainwindow::clear_roi_aabb()
   {
-    m_viewer->m_ren->m_bShowRoiBB = false;
+    glviewer->m_ren->m_bShowRoiBB = false;
 
-    m_viewer->updateGL();
+    glviewer->updateGL();
   }
 
   viewer_mainwindow::viewer_mainwindow
-      (data_manager_t * gdm):
+      (data_manager_t * gdm,std::string ef):
       m_active_otp_idx(0)
   {
     setupUi (this);
 
-    m_viewer = new glviewer_t(gdm);
+    glviewer->setup(gdm,ef);
 
-    m_viewer->setParent(glviewer);
+    m_otp_model = new configurable_item_model
+                  (glviewer->m_ren,this);
 
-    m_viewer->resize(glviewer->size());
-
-    m_otp_model = new configurable_item_model (m_viewer->m_ren,this);
 
     datapiece_view->setModel ( m_otp_model );
 
     m_cp_model = new configurable_item_model
-                 (m_viewer->m_ren->m_grid_piece_rens[m_active_otp_idx],this);
+                 (glviewer->m_ren->m_grid_piece_rens[m_active_otp_idx],this);
 
     m_cp_model_proxy = new QSortFilterProxyModel(this);
 
@@ -232,14 +277,14 @@ namespace grid
     if ( !index.isValid() )
       return QVariant();
 
-    if(index.column() >= m_conf->columns())
+    if(index.column() >= m_column_idxs.size())
       return QVariant();
 
-    configurable_t::data_index_t idx(index.column(),index.row());
+    configurable_t::data_index_t idx(m_column_idxs[index.column()],index.row());
 
     boost::any val;
 
-    m_conf->exchange_data(idx,val);
+    m_conf->exchange_field(idx,val);
 
     if(role == Qt::DisplayRole)
     {
@@ -263,7 +308,7 @@ namespace grid
 
   int configurable_item_model::columnCount ( const QModelIndex &parent  ) const
   {
-    return m_conf->columns();
+    return m_column_idxs.size();
   }
 
   QVariant configurable_item_model::headerData
@@ -271,10 +316,11 @@ namespace grid
   {
     if ( orientation == Qt::Horizontal &&
          role == Qt::DisplayRole &&
-         section < m_conf->columns())
+         section < m_column_idxs.size())
     {
+      boost::any h;
 
-      boost::any h  = m_conf->get_header(section);
+      m_conf->exchange_header(m_column_idxs[section],h);
 
       if(h.type() == typeid(std::string))
         return (boost::any_cast<std::string>(h)).c_str();
@@ -284,7 +330,7 @@ namespace grid
 
   int configurable_item_model::rowCount ( const QModelIndex &parent ) const
   {
-    return m_conf->rows();
+    return m_conf->dim()[1];
   }
 
   void configurable_item_model::reset_configurable(configurable_t *conf)
@@ -293,7 +339,37 @@ namespace grid
       return;
     m_conf = conf;
 
-    reset();
+    force_reset();
+  }
+
+  void configurable_item_model::setColumnFilter(int columnFilter)
+  {
+    m_column_filter = columnFilter;
+
+    m_column_idxs.clear();
+
+    configurable_t::data_index_t idx = m_conf->dim();
+
+    boost::any val;
+
+    for(uint i = 0; i < idx[0] ; ++i)
+    {
+
+      bool col_usable = false;
+
+      switch(m_conf->exchange_header(i,val))
+      {
+      case configurable_t::EFT_DATA_RO:
+        col_usable = m_column_filter&CF_EFT_DATA_RO;break;
+      case configurable_t::EFT_DATA_RW:
+        col_usable = m_column_filter&CF_EFT_DATA_RW;break;
+      case configurable_t::EFT_ACTION:
+        col_usable = m_column_filter&CF_EFT_ACTION;break;
+      };
+
+      if(col_usable)
+        m_column_idxs.push_back(i);
+    }
   }
 
   void configurable_ctx_menu
@@ -305,21 +381,23 @@ namespace grid
     if(l.size() == 0)
       return;
 
-    uint first_row = l[0].row();
-
     QMenu m;
 
-    for(uint i = 0 ; i < c->columns();++i)
+    std::set<int> row_set;
+
+    for(uint i = 0 ; i < l.size(); ++i )
+      row_set.insert(l[i].row());
+
+    std::vector<int> rows(row_set.size());
+
+    std::copy(row_set.begin(),row_set.end(),rows.begin());
+
+    for(uint i = 0 ; i < c->dim()[0];++i)
     {
-      boost::any val;
+      boost::any h;
 
-      configurable_t::data_index_t idx(i,first_row);
-
-      bool is_rw = c->exchange_data(idx,val);
-
-      if(is_rw == false) continue;
-
-      boost::any h  = c->get_header(i);
+      if(c->exchange_header(i,h) == configurable_t::EFT_DATA_RO)
+        continue;
 
       std::string hdr("could not read column header");
 
@@ -328,14 +406,27 @@ namespace grid
 
       QAction * action  = m.addAction ( hdr.c_str());
 
-      if(val.type() == typeid(bool))
+      std::vector<boost::any> vals;
+
+      for(uint j = 0 ; j < rows.size();++j )
+      {
+        boost::any val;
+
+        configurable_t::data_index_t idx(i,rows[j]);
+
+        c->exchange_field(idx,val);
+
+        vals.push_back(val);
+      }
+
+      if(vals[0].type() == typeid(bool))
       {
         action->setCheckable(true);
-        action->setChecked(boost::any_cast<bool>(val));
+        action->setChecked(boost::any_cast<bool>(vals[0]));
       }
 
       configurable_ctx_menu_sig_collector * coll =
-          new configurable_ctx_menu_sig_collector(c,val,i,l,&m);
+          new configurable_ctx_menu_sig_collector(c,vals,i,rows,&m);
 
       m.connect(action,SIGNAL ( triggered ( bool ) ),
                     coll,SLOT(triggered ( bool )));
@@ -348,13 +439,12 @@ namespace grid
   {
     boost::any out_val;
 
-    if(m_val.type() == typeid(bool))
+    if(m_vals[0].type() == typeid(bool))
       out_val = boost::any(state);
 
-    if(m_val.type() == typeid(glutils::color_t))
+    if(m_vals[0].type() == typeid(glutils::color_t))
     {
-
-      glutils::color_t c = boost::any_cast<glutils::color_t>(m_val);
+      glutils::color_t c = boost::any_cast<glutils::color_t>(m_vals[0]);
 
       QColor ic = QColor::fromRgbF(c[0],c[1],c[2],1.0);
 
@@ -364,16 +454,23 @@ namespace grid
         out_val = glutils::color_t(qc.redF(),qc.greenF(),qc.blueF());
     }
 
+    if(m_vals[0].type() == typeid(configurable_t::action_callback_t))
+    {
+      for(uint i = 0 ; i < m_vals.size();++i)
+        boost::any_cast<configurable_t::action_callback_t>(m_vals[i])();
+    }
+
     if(out_val.empty())
       return;
 
     for(uint i = 0 ; i < m_rows.size();++i)
     {
       configurable_t::data_index_t idx;
-      idx[1] = m_rows[i].row();
+      idx[1] = m_rows[i];
       idx[0] = m_col;
 
-      m_conf->exchange_data(idx,out_val);
+      m_conf->exchange_field(idx,out_val);
     }
   }
+
 }

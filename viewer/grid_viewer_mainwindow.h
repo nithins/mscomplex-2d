@@ -14,7 +14,6 @@
 
 #include <QGLViewer/qglviewer.h>
 
-#include <ui_grid_viewer_mainwindow.h>
 #include <boost/any.hpp>
 
 class configurable_t;
@@ -23,7 +22,7 @@ namespace grid
 {
 
 
-  class grid_viewer_t;
+  class viewer_t;
 
   class data_manager_t;
 
@@ -32,11 +31,15 @@ namespace grid
 
   public:
 
-    grid_viewer_t *m_ren;
+    viewer_t *m_ren;
 
     bool m_is_recording;
+    bool m_bf_cull;
+    bool m_wireframe;
 
-    glviewer_t(data_manager_t * p);
+    glviewer_t(QWidget *par);
+
+    void setup(data_manager_t *dm,std::string ef);
 
     ~glviewer_t();
 
@@ -51,6 +54,13 @@ namespace grid
 
   class configurable_item_model;
 
+}
+
+#include <ui_grid_viewer_mainwindow.h>
+
+namespace grid
+{
+
   class viewer_mainwindow:
       public QDialog,
       public Ui::grid_viewer_mainwindow_Dialog
@@ -60,7 +70,6 @@ namespace grid
 
   public:
 
-    glviewer_t              *m_viewer;
     uint                     m_active_otp_idx;
 
     QSortFilterProxyModel   *m_cp_model_proxy;
@@ -70,7 +79,7 @@ namespace grid
 
   public:
 
-    viewer_mainwindow(data_manager_t *gdm);
+    viewer_mainwindow(data_manager_t *gdm,std::string ef);
 
     ~viewer_mainwindow();
 
@@ -92,7 +101,9 @@ namespace grid
 
     void on_yroi_spanslider_spanChanged(int l , int u );
 
-    void on_zroi_spanslider_spanChanged(int l , int u );
+    void on_cp_point_size_horizontalSlider_valueChanged ( int value );
+
+    void on_cp_point_raise_horizontalSlider_valueChanged ( int value );
 
     void on_update_roi_pushButton_clicked(bool);
 
@@ -113,19 +124,19 @@ namespace grid
 
   public:
 
-    boost::any              m_val;
-    int                     m_col;
-    configurable_t *        m_conf;
-    const QModelIndexList & m_rows;
+    std::vector<boost::any>  m_vals;
+    int                      m_col;
+    configurable_t *         m_conf;
+    const std::vector<int> & m_rows;
 
     configurable_ctx_menu_sig_collector
         (configurable_t * conf,
-         const boost::any & val,
+         const std::vector<boost::any> & vals,
          const int & col,
-         const QModelIndexList & rows,
+         const std::vector<int> & rows,
          QObject *par):
         m_conf(conf),
-        m_val(val),
+        m_vals(vals),
         m_col(col),
         m_rows(rows)
     {setParent(par);}
@@ -140,8 +151,16 @@ namespace grid
 
   public:
 
+    enum eColumnFilter
+    {CF_EFT_DATA_RO = 1,
+     CF_EFT_DATA_RW = 2,
+     CF_EFT_ACTION  = 4};
+
     configurable_item_model ( configurable_t *conf,QObject *parent = 0 ):
-        QAbstractTableModel ( parent ),m_conf(conf){}
+        QAbstractTableModel ( parent ),m_conf(conf)
+    {
+      setColumnFilter(CF_EFT_DATA_RO|CF_EFT_DATA_RW);
+    }
 
     QVariant data ( const QModelIndex &index, int role ) const;
 
@@ -154,9 +173,15 @@ namespace grid
 
     void reset_configurable(configurable_t *conf);
 
-    void force_reset(){reset();}
+    void force_reset(){setColumnFilter(m_column_filter);reset();}
+
+    void setColumnFilter(int columnFilter);
 
   private:
+
+    int m_column_filter;
+
+    std::vector<int> m_column_idxs;
 
     configurable_t * m_conf;
 

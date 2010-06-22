@@ -19,6 +19,8 @@ int main(int ac , char **av)
 {
   string filename;
 
+  string elev_filename;
+
   n_vector_t<int,2> dim;
 
   bool   single_thread = false;
@@ -38,7 +40,8 @@ int main(int ac , char **av)
   bpo::options_description desc("Allowed options");
   desc.add_options()
       ("help,h", "produce help message")
-      ("file,f",bpo::value<std::string >(), "grid file name")
+      ("file,f",bpo::value<string >(), "grid file name")
+      ("elevation-file,e",bpo::value<string >(), "name of file for elevation (gui only)")
       ("dim,d", bpo::value<n_vector_t<int,2> >(), "dim of grid entered as (x,y)")
       ("single-thread-mode,s", "single threaded mode")
       ("cl","use OpenCL ")
@@ -56,19 +59,21 @@ int main(int ac , char **av)
 
   if (vm.count("help"))
   {
-    std::cout << desc << "\n";
+    cout << desc << "\n";
     return 1;
   }
 
   if (vm.count("dim"))
     dim = vm["dim"].as<n_vector_t<int,2> >();
   else
-    throw std::invalid_argument("no dim specified");
+    throw invalid_argument("no dim specified");
 
   if (vm.count("file"))
-    filename = vm["file"].as<std::string>();
+    filename = vm["file"].as<string>();
   else
-    throw std::invalid_argument("no filename specified");
+    throw invalid_argument("no filename specified");
+
+  elev_filename = filename;
 
   if (vm.count("cl"))
     use_ocl = true;
@@ -91,6 +96,9 @@ int main(int ac , char **av)
   if (vm.count("gui"))
     gui = true;
 
+  if (vm.count("elevation-file"))
+    elev_filename = vm["elevation-file"].as<string>();
+
   grid::data_manager_t * gdm = new grid::data_manager_t
       (filename,dim,
        num_levels,
@@ -103,7 +111,7 @@ int main(int ac , char **av)
   {
       QApplication application(ac,av);
 
-      grid::viewer_mainwindow gvmw(gdm);
+      grid::viewer_mainwindow gvmw(gdm,elev_filename);
 
       gvmw.setWindowTitle("ms complex vis");
 

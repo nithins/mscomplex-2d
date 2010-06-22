@@ -36,13 +36,15 @@ namespace grid
     static void cleanup();
   };
 
+  typedef boost::shared_ptr<glutils::renderable_t> renderable_sp_t;
+
+  typedef std::set<boost::shared_ptr<disc_rendata_t> > disc_rendata_sp_set_t;
+
+  typedef boost::shared_ptr<disc_rendata_t> disc_rendata_ptr_t;
+
   class octtree_piece_rendata:public configurable_t
   {
   public:
-
-    typedef boost::shared_ptr<glutils::renderable_t> renderable_sp_t;
-
-    typedef std::set<boost::shared_ptr<disc_rendata_t> > disc_rendata_sp_set_t;
 
     datapiece_t * dp;
 
@@ -68,7 +70,7 @@ namespace grid
 
     glutils::bufobj_ptr_t   cp_loc_bo;
 
-    std::vector<boost::shared_ptr<disc_rendata_t> > disc_rds;
+    std::vector<disc_rendata_ptr_t> disc_rds;
 
     disc_rendata_sp_set_t    active_disc_rens;
 
@@ -81,24 +83,25 @@ namespace grid
     void create_canc_cp_rens(const rect_t &roi);
     void create_grad_rens(const rect_t &roi);
 
-    void render_msgraph_data() ;
+    void render_msgraph_data(double cp_raise = 0.0,double cp_point_size = 4.0) ;
 
-    void render_dataset_data() ;
+    void render_dataset_data(double grad_raise = 0.0) ;
 
     octtree_piece_rendata(datapiece_t *);
 
+    static void init();
+    static void cleanup();
 
     // configurable_t interface
   public:
-    int rows();
-    int columns();
-    bool exchange_data(const data_index_t &,boost::any &);
-    boost::any get_header(int i);
+    virtual data_index_t dim();
+    virtual bool exchange_field(const data_index_t &,boost::any &);
+    virtual eFieldType exchange_header(const int &,boost::any &);
   };
 
   class data_manager_t;
 
-  class grid_viewer_t:
+  class viewer_t:
       public glutils::renderable_t,
       public configurable_t
   {
@@ -114,16 +117,20 @@ namespace grid
     bool                                   m_bRebuildRens;
     bool                                   m_bCenterToRoi;
 
+    double                                 m_cp_raise;
+    double                                 m_cp_size;
+
     data_manager_t *                       m_gdm;
     uint                                   m_rawdata_texture;
+    std::string                            m_elevation_filename;
 
   public:
 
-    grid_viewer_t(data_manager_t * );
+    viewer_t(data_manager_t * ,std::string ef);
 
-    ~grid_viewer_t();
+    ~viewer_t();
 
-    // ensure normalization of l and u, l < u , dim in {0,1,2}
+    // ensure normalization of l and u, l < u , dim in {0,1}
     void set_roi_dim_range_nrm(double l,double u,int dim);
 
     bool init_rawdata_texture();
@@ -141,10 +148,9 @@ namespace grid
 
     // configurable_t interface
   public:
-    int rows();
-    int columns();
-    bool exchange_data(const data_index_t &,boost::any &);
-    boost::any get_header(int i);
+    virtual data_index_t dim();
+    virtual bool exchange_field(const data_index_t &,boost::any &);
+    virtual eFieldType exchange_header(const int &,boost::any &);
   };
 }
 #endif //VIEWER_H_INCLUDED
