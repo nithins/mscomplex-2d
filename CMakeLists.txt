@@ -80,7 +80,15 @@ file(GLOB viewer_shader_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/vert_2mfold.glsl
   ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/grad_vert.glsl
   ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/grad_geom.glsl
-
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cyl_2mfold_vert.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cyl_2mfold_geom.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cyl_2mfold_frag.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cyl_1mfold_vert.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cyl_1mfold_geom.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/cyl_1mfold_frag.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/sphere_vert.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/sphere_geom.glsl
+  ${CMAKE_CURRENT_SOURCE_DIR}/viewer/shaders/sphere_frag.glsl
   )
 
 set(viewer_shader_SRCS

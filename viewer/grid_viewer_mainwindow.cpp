@@ -36,6 +36,10 @@ namespace grid
 
     glPolygonMode ( GL_BACK, GL_LINE );
 
+    setBackgroundColor(Qt::white);
+
+    restoreStateFromFile();
+
     m_ren->init();
   }
 

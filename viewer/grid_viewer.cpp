@@ -48,6 +48,8 @@ const char * s_is_dual_str[grid::GRADDIR_COUNT]=
 const char * s_shader_header_regex =
     "//HEADER_REPLACE_BEGIN(.*)//HEADER_REPLACE_END";
 
+#ifndef VIEWER_RENDER_AWESOME
+
 s_shader_data_t  s_cell_shaders[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
 {
   {
@@ -62,6 +64,24 @@ s_shader_data_t  s_cell_shaders[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
   },
 };
 
+#else
+
+s_shader_data_t  s_cell_shaders[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
+{
+  {
+    {NULL,{cyl_2mfold_vert_glsl,cyl_2mfold_geom_glsl,cyl_2mfold_frag_glsl},{NULL,s_is_dual_str[0],NULL},GL_POINTS,GL_TRIANGLES},
+    {NULL,{cyl_1mfold_vert_glsl,cyl_1mfold_geom_glsl,cyl_1mfold_frag_glsl},{NULL,s_is_dual_str[0],NULL},GL_POINTS,GL_TRIANGLES},
+    {NULL,{cyl_2mfold_vert_glsl,cyl_2mfold_geom_glsl,cyl_2mfold_frag_glsl},{NULL,s_is_dual_str[0],NULL},GL_POINTS,GL_TRIANGLES},
+  },
+{
+    {NULL,{cyl_2mfold_vert_glsl,cyl_2mfold_geom_glsl,cyl_2mfold_frag_glsl},{NULL,s_is_dual_str[1],NULL},GL_POINTS,GL_TRIANGLES},
+    {NULL,{cyl_1mfold_vert_glsl,cyl_1mfold_geom_glsl,cyl_1mfold_frag_glsl},{NULL,s_is_dual_str[1],NULL},GL_POINTS,GL_TRIANGLES},
+    {NULL,{cyl_2mfold_vert_glsl,cyl_2mfold_geom_glsl,cyl_2mfold_frag_glsl},{NULL,s_is_dual_str[1],NULL},GL_POINTS,GL_TRIANGLES},
+  },
+};
+
+#endif
+
 glutils::color_t g_grid_cp_colors[grid::gc_grid_dim+1] =
 {
   glutils::color_t(0.0,0.0,1.0),
@@ -71,8 +91,8 @@ glutils::color_t g_grid_cp_colors[grid::gc_grid_dim+1] =
 
 glutils::color_t g_grid_grad_colors[grid::gc_grid_dim] =
 {
-  glutils::color_t(0.0,0.5,0.5 ),
-  glutils::color_t(0.5,0.0,0.5 ),
+  glutils::color_t(0.35,0.35,0.35 ),
+  glutils::color_t(0.20,0.20,0.20 ),
 };
 
 glutils::color_t g_disc_colors[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
@@ -98,10 +118,15 @@ glutils::color_t g_grid_cp_conn_colors[grid::gc_grid_dim] =
 
 glutils::color_t g_roiaabb_color = glutils::color_t(0.85,0.75,0.65);
 
+#ifndef VIEWER_RENDER_AWESOME
 double g_max_cp_size  = 8.0;
+#else
+double g_max_cp_size  = 0.5;
+#endif
 double g_max_cp_raise = 0.025;
 
 GLSLProgram * s_grad_shader = NULL;
+GLSLProgram * s_sphere_shader = NULL;
 
 namespace grid
 {
@@ -189,30 +214,51 @@ namespace grid
 
   void octtree_piece_rendata::init()
   {
-    if(s_grad_shader != NULL)
-      return;
+    if(s_grad_shader == NULL)
+    {
 
-    s_grad_shader = GLSLProgram::createFromSourceStrings
-                    (grad_vert_glsl,grad_geom_glsl,std::string(),
-                     GL_LINES,GL_TRIANGLES);
+      s_grad_shader = GLSLProgram::createFromSourceStrings
+                      (grad_vert_glsl,grad_geom_glsl,std::string(),
+                       GL_LINES,GL_TRIANGLES);
 
-    std::string log;
+      std::string log;
 
-    s_grad_shader->GetProgramLog(log);
+      s_grad_shader->GetProgramLog(log);
 
-    if(log.size() != 0 )
-      throw std::runtime_error("******grad_shader compile error*******\n"+log);
+      if(log.size() != 0 )
+        throw std::runtime_error("******grad_shader compile error*******\n"+log);
+    }
+
+    if(s_sphere_shader == NULL)
+    {
+
+      s_sphere_shader = GLSLProgram::createFromSourceStrings
+                      (sphere_vert_glsl,sphere_geom_glsl,sphere_frag_glsl,
+                       GL_POINTS,GL_QUADS);
+
+      std::string log;
+
+      s_sphere_shader->GetProgramLog(log);
+
+      if(log.size() != 0 )
+        throw std::runtime_error("******sphere_shader compile error*******\n"+log);
+    }
+
 
   }
 
   void octtree_piece_rendata::cleanup()
   {
     if(s_grad_shader == NULL)
-      return;
+    {
+      delete s_grad_shader;s_grad_shader = NULL;
+    }
 
-    delete s_grad_shader;
+    if(s_sphere_shader == NULL)
+    {
+      delete s_sphere_shader;s_sphere_shader = NULL;
+    }
 
-    s_grad_shader = NULL;
   }
 
 
@@ -750,6 +796,14 @@ namespace grid
 
     glTranslatef(0,cp_raise,0);
 
+#ifdef VIEWER_RENDER_AWESOME
+
+    s_sphere_shader->use();
+
+    s_sphere_shader->sendUniform("g_wc_radius",(float)cp_point_size);
+
+#endif
+
     for(uint i = 0 ; i < gc_grid_dim+1;++i)
     {
       if(ren_cp[i]&& (m_bShowCps[i]||m_bShowAllCps))
@@ -780,6 +834,11 @@ namespace grid
         }
       }
     }
+#ifdef VIEWER_RENDER_AWESOME
+
+    s_sphere_shader->disable();
+
+#endif
 
     if (m_bShowMsGraph)
     {
@@ -954,11 +1013,6 @@ namespace grid
 
         s_cell_shaders[dir][index].prog->sendUniform ( "rawdata_texture",s_rawdata_texture_no );
 
-        glColor3dv(g_grid_cp_colors[index].data());
-
-        glBegin(GL_POINTS);
-        glVertex3dv(cell_to_vertex(cellid).data());
-        glEnd();
 
         glColor3dv(color[dir].data());
 
