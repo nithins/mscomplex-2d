@@ -160,7 +160,7 @@ oclKernelSourceInfo s_kernels[OCLKERN_END-OCLKERN_BEGIN] =
 
 const int max_threads_1D   = 128;
 const int max_threads_2D_x = 16;
-const int max_threads_2D_y = 8;
+const int max_threads_2D_y = 16;
 
 void compile_cl_program(std::string prog_filename,std::string header_filename,
                         std::string compile_flags,cl_program &prog,cl_context & context,cl_device_id &device_id)
@@ -543,15 +543,15 @@ namespace grid
 
     cl_short2 int_bl,int_tr,ext_bl,ext_tr;
 
-    int_bl.x = m_rect.lower_corner()[0];
-    int_bl.y = m_rect.lower_corner()[1];
-    int_tr.x = m_rect.upper_corner()[0];
-    int_tr.y = m_rect.upper_corner()[1];
+    int_bl[0] = m_rect.lower_corner()[0];
+    int_bl[1] = m_rect.lower_corner()[1];
+    int_tr[0] = m_rect.upper_corner()[0];
+    int_tr[1] = m_rect.upper_corner()[1];
 
-    ext_bl.x = m_ext_rect.lower_corner()[0];
-    ext_bl.y = m_ext_rect.lower_corner()[1];
-    ext_tr.x = m_ext_rect.upper_corner()[0];
-    ext_tr.y = m_ext_rect.upper_corner()[1];
+    ext_bl[0] = m_ext_rect.lower_corner()[0];
+    ext_bl[1] = m_ext_rect.lower_corner()[1];
+    ext_tr[0] = m_ext_rect.upper_corner()[0];
+    ext_tr[1] = m_ext_rect.upper_corner()[1];
 
     unsigned int a = 0;
 
@@ -686,10 +686,10 @@ namespace grid
 
     cl_short2 ext_bl,ext_tr;
 
-    ext_bl.x = m_ext_rect.lower_corner()[0];
-    ext_bl.y = m_ext_rect.lower_corner()[1];
-    ext_tr.x = m_ext_rect.upper_corner()[0];
-    ext_tr.y = m_ext_rect.upper_corner()[1];
+    ext_bl[0] = m_ext_rect.lower_corner()[0];
+    ext_bl[1] = m_ext_rect.lower_corner()[1];
+    ext_tr[0] = m_ext_rect.upper_corner()[0];
+    ext_tr[1] = m_ext_rect.upper_corner()[1];
 
     cl_mem critpt_idx_buf =
         clCreateBuffer(s_context,CL_MEM_READ_WRITE,critpt_idx_buf_sz,NULL,&error_code);
@@ -898,10 +898,10 @@ namespace grid
 
     cl_short2 ext_bl,ext_tr;
 
-    ext_bl.x = m_ext_rect.lower_corner()[0];
-    ext_bl.y = m_ext_rect.lower_corner()[1];
-    ext_tr.x = m_ext_rect.upper_corner()[0];
-    ext_tr.y = m_ext_rect.upper_corner()[1];
+    ext_bl[0] = m_ext_rect.lower_corner()[0];
+    ext_bl[1] = m_ext_rect.lower_corner()[1];
+    ext_tr[0] = m_ext_rect.upper_corner()[0];
+    ext_tr[1] = m_ext_rect.upper_corner()[1];
 
     cl_image_format cell_own_imgfmt;
 
@@ -1031,10 +1031,10 @@ namespace grid
 
     cl_short2 ext_bl,ext_tr;
 
-    ext_bl.x = m_ext_rect.lower_corner()[0];
-    ext_bl.y = m_ext_rect.lower_corner()[1];
-    ext_tr.x = m_ext_rect.upper_corner()[0];
-    ext_tr.y = m_ext_rect.upper_corner()[1];
+    ext_bl[0] = m_ext_rect.lower_corner()[0];
+    ext_bl[1] = m_ext_rect.lower_corner()[1];
+    ext_tr[0] = m_ext_rect.upper_corner()[0];
+    ext_tr[1] = m_ext_rect.upper_corner()[1];
 
     uint critpt_ct = m_critical_cells.size();
 
@@ -1420,15 +1420,16 @@ namespace grid
     m_cell_pairs = new cellpair_array_t( (boost::extents[1+s[0]][1+s[1]]));
     m_cell_own   = new cellpair_array_t( (boost::extents[1+s[0]][1+s[1]]));
 
-    for (int y = 0 ; y<=s[1];++y)
-      for (int x = 0 ; x<=s[0];++x)
-        (*m_cell_flags)[x][y] = CELLFLAG_UNKNOWN;
-
     rect_point_t bl = m_ext_rect.lower_corner();
 
     (*m_cell_flags).reindex (bl);
     (*m_cell_pairs).reindex (bl);
     (*m_cell_own).reindex (bl);
+
+    uint num_cells = (1+s[0])*(s[1]+1);
+
+    std::fill_n(m_cell_own->data(),num_cells,cellid_t(-1,-1));
+    std::fill_n(m_cell_flags->data(),num_cells,CELLFLAG_UNKNOWN);
   }
 
   void  dataset_t::clear()
@@ -1925,4 +1926,18 @@ namespace grid
       std::cout<<std::endl;
     }
   }
+
+  void dataset_t::log_owns()
+  {
+    for (cell_coord_t y = m_ext_rect.lower_corner()[1]; y <= m_ext_rect.upper_corner()[1];y += 1)
+    {
+      for (cell_coord_t x = m_ext_rect.lower_corner()[0]; x <= m_ext_rect.upper_corner()[0];x += 1)
+      {
+        cellid_t c(x,y);
+        std::cout<<(*m_cell_own)(c)<<" ";
+      }
+      std::cout<<std::endl;
+    }
+  }
+
 }

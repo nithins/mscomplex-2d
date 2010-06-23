@@ -245,7 +245,7 @@ namespace grid
     dest_cp->index                    = cp.index;
     dest_cp->fn                       = cp.fn;
 
-    msc.m_id_cp_map[dest_cp->cellid]  = msc.m_cps.size();
+    msc.m_id_cp_map.insert(std::make_pair(dest_cp->cellid,msc.m_cps.size()));
     msc.m_cps.push_back(dest_cp);
   }
 
@@ -471,8 +471,7 @@ namespace grid
           {
             critpt_t *src_conn_cp = m_cps[*it];
 
-            if(src_conn_cp->is_paired == true)
-              throw std::logic_error("only non cancellable cps must be remaining");
+            ensure_cp_is_not_paired(this,*it);
 
             if(msc->m_id_cp_map.count(src_conn_cp->cellid) == 0)
             {
@@ -717,6 +716,9 @@ namespace grid
       {
         bool need_disc = false;
 
+        if(!m_rect.contains(cp[dir^1]->cellid))
+          continue;
+
         for(conn_iter_t it  = cp[dir]->conn[dir].begin();
                         it != cp[dir]->conn[dir].end(); ++it)
         {
@@ -826,6 +828,7 @@ namespace boost
       ar & c.isCancelled;
       ar & c.fn;
       ar & c.pair_idx;
+      ar & c.index;
     }
 
 

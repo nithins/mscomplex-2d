@@ -225,6 +225,8 @@ namespace grid
 
     void log_pairs();
 
+    void log_owns();
+
     // return fn at point .. averge of points for higher dims
     cell_fn_t get_cell_fn ( cellid_t c ) const;
 
