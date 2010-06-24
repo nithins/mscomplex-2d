@@ -14,6 +14,8 @@ const float small_sz = 0.1;
 const float big_sz   = 1.0;
 
 uniform sampler2DRect rawdata_texture;
+uniform vec2 ug_bl;
+uniform vec2 ug_tr;
 
 const float ug_cylinder_radius = 0.05;
 
@@ -35,8 +37,10 @@ vec3[4] get_quad(vec3 c)
   for(i[2] = -1 ; i[2] <= 1 ;i[2]+=2)
       for(i[0] = -1 ; i[0] <= 1 ;i[0]+=2)
       {
-        p[pos] 	 = c+i*sz;
-        p[pos].y = texture2DRect(rawdata_texture, ((c+i*ex).xz)/2).x;
+        p[pos]    = c+i*sz;
+        p[pos].xz = max(p[pos].xz,ug_bl);
+        p[pos].xz = min(p[pos].xz,ug_tr);
+        p[pos].y  = texture2DRect(rawdata_texture, ((c+i*ex).xz)/2).x;
         pos++;
       }
 

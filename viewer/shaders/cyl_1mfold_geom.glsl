@@ -13,6 +13,8 @@ const int is_dual = 1;
 const float line_sz   = 1.0;
 
 uniform sampler2DRect rawdata_texture;
+uniform vec2 ug_bl;
+uniform vec2 ug_tr;
 
 const float ug_cylinder_radius = 0.11;
 
@@ -30,6 +32,12 @@ vec3[2] get_line(vec3 c)
 
   p[0]   = c - sz;
   p[1]   = c + sz;
+
+  p[0].xz = max(p[0].xz,ug_bl);
+  p[1].xz = max(p[1].xz,ug_bl);
+
+  p[0].xz = min(p[0].xz,ug_tr);
+  p[1].xz = min(p[1].xz,ug_tr);
 
   p[0].y = texture2DRect(rawdata_texture, (p[0].xz)/2).x;
   p[1].y = texture2DRect(rawdata_texture, (p[1].xz)/2).x;

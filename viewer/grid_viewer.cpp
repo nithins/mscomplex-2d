@@ -881,10 +881,13 @@ namespace grid
     glPushMatrix();
     glPushAttrib ( GL_ENABLE_BIT );
 
+    cellid_t bl = dp->msgraph->m_ext_rect.lower_corner();
+    cellid_t tr = dp->msgraph->m_ext_rect.upper_corner();
+
     for(disc_rendata_sp_set_t::iterator it = active_disc_rens.begin();
         it != active_disc_rens.end() ; ++it)
     {
-      (*it)->render();
+      (*it)->render(bl,tr);
     }
 
     glTranslatef(0,grad_raise,0);
@@ -1003,7 +1006,7 @@ namespace grid
 
   }
 
-  void disc_rendata_t::render()
+  void disc_rendata_t::render(const cellid_t & bl,const cellid_t & tr)
   {
     for(uint dir = 0 ; dir<2;++dir)
     {
@@ -1012,8 +1015,11 @@ namespace grid
         s_cell_shaders[dir][index].prog->use();
 
         s_cell_shaders[dir][index].prog->sendUniform ( "rawdata_texture",s_rawdata_texture_no );
+#ifdef VIEWER_RENDER_AWESOME
+        s_cell_shaders[dir][index].prog->sendUniform("ug_bl",(float)bl[0],(float)bl[1]);
 
-
+        s_cell_shaders[dir][index].prog->sendUniform("ug_tr",(float)tr[0],(float)tr[1]);
+#endif
         glColor3dv(color[dir].data());
 
         ren[dir]->render();

@@ -29,7 +29,7 @@ namespace grid
     disc_rendata_t(cellid_t c,uint i);
     ~disc_rendata_t();
 
-    void render();
+    void render(const cellid_t & bl,const cellid_t & tr);
     bool update(mscomplex_t *);
 
     static void init();
