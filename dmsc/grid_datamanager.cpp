@@ -599,22 +599,24 @@ namespace grid
   }
 
   data_manager_t::data_manager_t
-      ( std::string filename,
-        cellid_t    size,
+      ( std::string  filename,
+        cellid_t     size,
         u_int        num_levels,
-        bool         single_threaded_mode,
+        bool         threaded_mode,
         bool         use_ocl,
         double       simp_tresh,
         bool         compute_out_of_core,
-        uint         np):
+        uint         np,
+        bool         save_mfolds_to_file):
       m_filename(filename),
       m_size(size),
       m_num_levels(num_levels),
-      m_single_threaded_mode(single_threaded_mode),
+      m_single_threaded_mode(threaded_mode),
       m_use_ocl(use_ocl),
       m_simp_tresh(simp_tresh),
       m_compute_out_of_core(compute_out_of_core),
-      num_parallel(np)
+      num_parallel(np),
+      m_save_mfolds_to_file(save_mfolds_to_file)
   {
 
     if(num_parallel == 1)

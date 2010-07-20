@@ -37,6 +37,8 @@ int main(int ac , char **av)
 
   bool   gui = false;
 
+  bool   save_mfolds_to_file = false;
+
   bpo::options_description desc("Allowed options");
   desc.add_options()
       ("help,h", "produce help message")
@@ -50,6 +52,7 @@ int main(int ac , char **av)
       ("simp-tresh,t",bpo::value<double>(),"simplification treshold")
       ("num-parallel,p",bpo::value<int>(),"num subdomains to process in parallel")
       ("gui,g","show gui")
+      ("write-mfolds,w","write asc/des manifolds to disc")
       ;
 
 
@@ -96,6 +99,9 @@ int main(int ac , char **av)
   if (vm.count("gui"))
     gui = true;
 
+  if(vm.count("write-mfolds"))
+    save_mfolds_to_file = true;
+
   if (vm.count("elevation-file"))
     elev_filename = vm["elevation-file"].as<string>();
 
@@ -105,7 +111,8 @@ int main(int ac , char **av)
        single_thread,use_ocl,
        simp_tresh,
        out_of_core_flag,
-       num_parallel);
+       num_parallel,
+       save_mfolds_to_file);
 
   if(gui)
   {

@@ -67,6 +67,7 @@ namespace grid
     bool                         m_single_threaded_mode;
     bool                         m_use_ocl;
     bool                         m_compute_out_of_core;
+    bool                         m_save_mfolds_to_file;
 
     boost::thread **             m_threads;
 
@@ -83,7 +84,8 @@ namespace grid
           bool         use_ocl,
           double       simp_tresh,
           bool         compute_out_of_core,
-          uint         np);
+          uint         np,
+          bool         save_mfolds_to_file);
 
     virtual ~data_manager_t ();
 

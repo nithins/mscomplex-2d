@@ -234,8 +234,7 @@ namespace grid
 
   void shallow_replicate_cp(mscomplex_t &msc, const critpt_t &cp)
   {
-    if(msc.m_id_cp_map.count(cp.cellid) != 0)
-      throw std::logic_error("this cp is present in msc");
+    ensure_cellid_not_critical(&msc,cp.cellid);
 
     critpt_t * dest_cp = new critpt_t;
 
@@ -342,8 +341,7 @@ namespace grid
       {
         cellid_t c(x,y);
 
-        if(out_msc->m_id_cp_map.count(c) != 1)
-          throw std::logic_error("missing common bndry cp");
+        ensure_cellid_critical(out_msc,c);
 
         u_int src_idx = out_msc->m_id_cp_map[c];
 
@@ -386,8 +384,7 @@ namespace grid
 
         cellid_t c(x,y);
 
-        if(this->m_id_cp_map.count(c) != 1)
-          throw std::logic_error("missing common bndry cp");
+        ensure_cellid_critical(this,c);
 
         u_int src_idx = this->m_id_cp_map[c];
 
@@ -423,8 +420,7 @@ namespace grid
       {
         critpt_t * src_cp = m_cps[j];
 
-        if(src_cp->isCancelled)
-          throw std::logic_error("all cps ought to be uncancelled by now");
+        ensure_cp_is_not_cancelled(this,j);
 
         if(!src_cp->is_paired)
           continue;
@@ -504,12 +500,7 @@ namespace grid
           {
             critpt_t *src_conn_cp = m_cps[*it];
 
-            if(src_conn_cp->is_paired == true)
-            {
-              _LOG("appears that "<<src_conn_cp->cellid<<"is still connected to"<<
-                   src_cp->cellid);
-              //throw std::logic_error("only non cancellable cps must be remaining 1");
-            }
+            ensure_cp_is_not_paired(this,*it);
 
             if(msc->m_id_cp_map.count(src_conn_cp->cellid) == 0)
               continue;
@@ -687,15 +678,16 @@ namespace grid
   {
     for(uint i = 0 ; i < m_cps.size(); ++i)
     {
-      if(!m_ext_rect.contains(m_cps[i]->cellid))
-        continue;
 
       if(!m_cps[i]->is_paired)
       {
-        for(uint dir = 0 ; dir < 2 ;++dir)
+        if(m_rect.contains(m_cps[i]->cellid))
         {
-          m_cps[i]->disc[dir].push_back(m_cps[i]->cellid);
-          m_cps[i]->contrib[dir].push_back(i);
+          for(uint dir = 0 ; dir < 2 ;++dir)
+          {
+            m_cps[i]->disc[dir].push_back(m_cps[i]->cellid);
+            m_cps[i]->contrib[dir].push_back(i);
+          }
         }
         continue;
       }

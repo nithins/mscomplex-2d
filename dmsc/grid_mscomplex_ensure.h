@@ -6,9 +6,9 @@
 // bunch of predicates that throw when I suspect something could be logically
 // wrong with the state of the MS complex.. to be disabled in release builds
 
-//#ifndef NDEBUG
+#ifndef NDEBUG
 #define USE_ENSURE_PREDICATES
-//#endif
+#endif
 
 namespace grid
 {
@@ -169,6 +169,15 @@ namespace grid
       throw std::logic_error("cellid not entered as critical in msc");
 #endif
   }
+
+  inline void ensure_cellid_not_critical(mscomplex_t * msc,cellid_t c)
+  {
+#ifdef USE_ENSURE_PREDICATES
+    if(msc->m_id_cp_map.count(c) != 0)
+      throw std::logic_error("cellid entered as critical in msc");
+#endif
+  }
+
 
   inline void ensure_cp_is_cancelled(mscomplex_t *msc,uint i)
   {
