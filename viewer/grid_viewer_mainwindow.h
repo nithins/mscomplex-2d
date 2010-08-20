@@ -109,6 +109,8 @@ namespace grid
 
     void on_center_to_roi_checkBox_clicked(bool);
 
+    void on_show_surface_checkBox_clicked(bool);
+
   private slots:
     void clear_roi_aabb();
   };

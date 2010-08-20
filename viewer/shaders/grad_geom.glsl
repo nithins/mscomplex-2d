@@ -3,11 +3,11 @@
 #extension GL_EXT_gpu_shader4 : enable
 #extension GL_ARB_texture_rectangle: enable
 
-const float large_width  = 0.3;
+const float large_width  = 0.5;
 const float small_width  = 0.1;
 const float length_ratio = 0.66;
-
-uniform sampler2DRect rawdata_texture;
+const float u_len_pt = 0;
+const float v_len_pt = 1.5;
 
 vec4 diffuse;
 vec4 ambient;
@@ -16,16 +16,16 @@ vec4 in_color;
 vec3 lightDir;
 vec3 halfVector;
 
-void set_front_color_xfm(vec4 p1,vec4 p2,vec4 p3)
-{
-  vec3 v1 = (p1.xyz-p2.xyz);
-  vec3 v2 = (p1.xyz-p3.xyz);
+varying in vec3 normal[];
 
+void set_front_color_xfm(vec3 n)
+{
   vec3  halfV,viewV,ldir;
   float NdotL,NdotHV;
   vec4  color  = ambient;
 
-  vec3  n  = normalize(cross(v1,v2));
+  
+
   NdotL = max(dot(n,lightDir),0.0);
 
   if (NdotL > 0.0)
@@ -49,23 +49,17 @@ void set_light_constants()
   halfVector = normalize(gl_LightSource[0].halfVector.xyz);
 }
 
-vec3[2] get_line(vec3 c[2])
-{
-  vec3[2] p;
-  
-  p[0] = vec3(c[0].x,texture2DRect(rawdata_texture, (c[0].xz)/2).x,c[0].z);
-  p[1] = vec3(c[1].x,texture2DRect(rawdata_texture, (c[1].xz)/2).x,c[1].z);
-
-  return p;
-}
-
-vec3[6] get_arrow(vec3 l[2])
+vec3[6] get_arrow(vec3 l[2],vec3 n)
 {
   vec3 t[6];
 
-  vec3 cntr_pt = mix(l[0],l[1],length_ratio);
+  vec3 len_dir = l[1] - l[0];
+  vec3 lat_dir = -normalize(cross(len_dir,n));
 
-  vec3 lat_dir = normalize(cross(l[0] - l[1],vec3(0,1,0)));
+  l[0] = l[0] + u_len_pt * len_dir;
+  l[1] = l[0] + v_len_pt * len_dir;
+
+  vec3 cntr_pt = mix(l[0],l[1],length_ratio);    
 
   t[0] = l[0];
   t[1] = cntr_pt - small_width*lat_dir;
@@ -78,9 +72,9 @@ vec3[6] get_arrow(vec3 l[2])
   return t;
 }
 
-void draw_tri(vec4 p1,vec4 p2,vec4 p3)
+void draw_tri(vec4 p1,vec4 p2,vec4 p3,vec3 n)
 {
-  set_front_color_xfm(p1,p2,p3);
+  set_front_color_xfm(n);
 
   gl_Position = p1; EmitVertex();
   gl_Position = p2; EmitVertex();
@@ -88,16 +82,18 @@ void draw_tri(vec4 p1,vec4 p2,vec4 p3)
   EndPrimitive();
 }
 
-void draw_arrow(vec3 c[2])
+void draw_arrow(vec3 c[2],vec3 n)
 {
-  vec3 mc_t[6] = get_arrow(get_line(c));
+  vec3 mc_t[6] = get_arrow(c,n);
   vec4 wc_t[6];
 
   for(int i = 0 ; i < 6; ++i)  
     wc_t[i] = (gl_ModelViewProjectionMatrix*vec4(mc_t[i],1.0));
 
-  draw_tri(wc_t[0],wc_t[1],wc_t[2]);
-  draw_tri(wc_t[3],wc_t[4],wc_t[5]);  
+  n = normalize(gl_NormalMatrix*n);
+
+  draw_tri(wc_t[0],wc_t[1],wc_t[2],n);
+  draw_tri(wc_t[3],wc_t[4],wc_t[5],n);  
 }
 
 
@@ -114,6 +110,8 @@ void main()
     c[0] = gl_PositionIn[i+0].xyz;
     c[1] = gl_PositionIn[i+1].xyz;
 
-    draw_arrow(c);
+    vec3 n = (normal[i] + normal[i+1])/2;
+
+    draw_arrow(c,n);
   } 
 }

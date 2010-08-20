@@ -16,9 +16,9 @@
   <property name="windowTitle">
    <string>Frame</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_6">
+  <layout class="QVBoxLayout" name="verticalLayout_7">
    <item>
-    <widget class="QSplitter" name="splitter_3">
+    <widget class="QSplitter" name="splitter_2">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
      </property>
@@ -27,145 +27,163 @@
        <bool>false</bool>
       </property>
      </widget>
-     <widget class="QSplitter" name="splitter_2">
+     <widget class="QSplitter" name="splitter">
       <property name="orientation">
        <enum>Qt::Horizontal</enum>
       </property>
-      <widget class="QSplitter" name="splitter">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-       <widget class="QGroupBox" name="roi_groupBox">
-        <property name="title">
-         <string>Region of Interest</string>
-        </property>
-        <property name="flat">
-         <bool>false</bool>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_3">
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
+      <widget class="QWidget" name="">
+       <layout class="QVBoxLayout" name="verticalLayout_6">
+        <item>
+         <widget class="QGroupBox" name="roi_groupBox">
+          <property name="title">
+           <string>Region of Interest</string>
+          </property>
+          <property name="flat">
+           <bool>false</bool>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_3">
            <item>
-            <widget class="QxtSpanSlider" name="xroi_spanslider">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="tickPosition">
-              <enum>QSlider::NoTicks</enum>
-             </property>
-             <property name="lowerValue">
-              <number>0</number>
-             </property>
-             <property name="upperValue">
-              <number>99</number>
-             </property>
-             <property name="upperPosition">
-              <number>99</number>
-             </property>
-             <property name="handleMovementMode">
-              <enum>QxtSpanSlider::NoOverlapping</enum>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QxtSpanSlider" name="yroi_spanslider">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="tickPosition">
-              <enum>QSlider::NoTicks</enum>
-             </property>
-             <property name="lowerValue">
-              <number>0</number>
-             </property>
-             <property name="upperValue">
-              <number>99</number>
-             </property>
-             <property name="upperPosition">
-              <number>99</number>
-             </property>
-             <property name="handleMovementMode">
-              <enum>QxtSpanSlider::NoOverlapping</enum>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QPushButton" name="update_roi_pushButton">
-             <property name="text">
-              <string>update roi</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="center_to_roi_checkBox">
-             <property name="text">
-              <string>Center to ROI</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-       <widget class="QGroupBox" name="groupBox">
-        <property name="title">
-         <string>Critical Point</string>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_5">
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayout_4">
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout">
+            <layout class="QVBoxLayout" name="verticalLayout_2">
              <item>
-              <widget class="QLabel" name="cp_point_size_label">
-               <property name="text">
-                <string>Size</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QSlider" name="cp_point_size_horizontalSlider">
-               <property name="value">
-                <number>50</number>
-               </property>
+              <widget class="QxtSpanSlider" name="xroi_spanslider">
                <property name="orientation">
                 <enum>Qt::Horizontal</enum>
                </property>
-              </widget>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayout_2">
-             <item>
-              <widget class="QLabel" name="cp_point_raise_label">
-               <property name="text">
-                <string>Raise</string>
+               <property name="tickPosition">
+                <enum>QSlider::NoTicks</enum>
                </property>
-               <property name="alignment">
-                <set>Qt::AlignCenter</set>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QSlider" name="cp_point_raise_horizontalSlider">
-               <property name="value">
+               <property name="lowerValue">
                 <number>0</number>
                </property>
+               <property name="upperValue">
+                <number>99</number>
+               </property>
+               <property name="upperPosition">
+                <number>99</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QxtSpanSlider" name="yroi_spanslider">
                <property name="orientation">
                 <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="tickPosition">
+                <enum>QSlider::NoTicks</enum>
+               </property>
+               <property name="lowerValue">
+                <number>0</number>
+               </property>
+               <property name="upperValue">
+                <number>99</number>
+               </property>
+               <property name="upperPosition">
+                <number>99</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="update_roi_pushButton">
+               <property name="text">
+                <string>update roi</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="center_to_roi_checkBox">
+               <property name="text">
+                <string>Center to ROI</string>
                </property>
               </widget>
              </item>
             </layout>
            </item>
           </layout>
-         </item>
-        </layout>
-       </widget>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupBox">
+          <property name="title">
+           <string>Critical Point</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_5">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout_4">
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout">
+               <item>
+                <widget class="QLabel" name="cp_point_size_label">
+                 <property name="text">
+                  <string>Size</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSlider" name="cp_point_size_horizontalSlider">
+                 <property name="value">
+                  <number>50</number>
+                 </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="horizontalLayout_2">
+               <item>
+                <widget class="QLabel" name="cp_point_raise_label">
+                 <property name="text">
+                  <string>Raise</string>
+                 </property>
+                 <property name="alignment">
+                  <set>Qt::AlignCenter</set>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSlider" name="cp_point_raise_horizontalSlider">
+                 <property name="value">
+                  <number>0</number>
+                 </property>
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="groupBox_2">
+          <property name="title">
+           <string>Misc</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_8">
+           <item>
+            <widget class="QCheckBox" name="show_surface_checkBox">
+             <property name="text">
+              <string>Show Surface</string>
+             </property>
+             <property name="checked">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+          <zorder>show_surface_checkBox</zorder>
+          <zorder>groupBox</zorder>
+         </widget>
+        </item>
+       </layout>
       </widget>
       <widget class="QTableView" name="datapiece_view">
        <property name="contextMenuPolicy">
@@ -254,6 +272,10 @@
     </widget>
    </item>
   </layout>
+  <zorder>splitter_3</zorder>
+  <zorder>groupBox_2</zorder>
+  <zorder>groupBox_2</zorder>
+  <zorder>glviewer</zorder>
  </widget>
  <customwidgets>
   <customwidget>

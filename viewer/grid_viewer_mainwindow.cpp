@@ -190,7 +190,7 @@ namespace grid
   {
     BOOST_AUTO(sldr,cp_point_size_horizontalSlider);
 
-    glviewer->m_ren->m_cp_size = get_nrm_value(v,sldr->minimum(),sldr->maximum());
+    glviewer->m_ren->set_cp_size_nrm(get_nrm_value(v,sldr->minimum(),sldr->maximum()));
 
     glviewer->updateGL();
   }
@@ -199,7 +199,7 @@ namespace grid
   {
     BOOST_AUTO(sldr,cp_point_raise_horizontalSlider);
 
-    glviewer->m_ren->m_cp_raise = get_nrm_value(v,sldr->minimum(),sldr->maximum());
+    glviewer->m_ren->set_cp_raise_nrm(get_nrm_value(v,sldr->minimum(),sldr->maximum()));
 
     glviewer->updateGL();
   }
@@ -215,6 +215,13 @@ namespace grid
   void viewer_mainwindow::on_center_to_roi_checkBox_clicked(bool state)
   {
     glviewer->m_ren->m_bCenterToRoi = state;
+
+    glviewer->updateGL();
+  }
+
+  void viewer_mainwindow::on_show_surface_checkBox_clicked(bool state)
+  {
+    glviewer->m_ren->m_bShowSurface = state;
 
     glviewer->updateGL();
   }

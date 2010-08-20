@@ -1,51 +1,16 @@
-
 #version 120
 #extension GL_EXT_geometry_shader4 : enable
 #extension GL_EXT_gpu_shader4 : enable
 #extension GL_ARB_texture_rectangle: enable
 
-//HEADER_REPLACE_BEGIN
+const float line_sz   = 1.0;
 
-const int is_dual = 1;
-
-//HEADER_REPLACE_END
-
-const float small_sz = 0.1;
-const float big_sz   = 1.0;
-
-uniform sampler2DRect rawdata_texture;
-uniform vec2 ug_bl;
-uniform vec2 ug_tr;
-
-const float ug_cylinder_radius = 0.05;
+const float ug_cylinder_radius = 4;
 
 varying out vec3  f_wc_p0;
 varying out vec3  f_wc_p1;
 varying out float f_wc_radius;
 varying out vec3  f_wc_prism_crd;
-
-vec3[4] get_quad(vec3 c)
-{
-  vec3[4] p;  int pos = 0;  ivec3 i = ivec3(0,0,0);ivec3 ex = ivec3(0,0,0); vec3  sz = vec3(0,0,0);
-  
-  ex.x     = (int(c.x)&1)^is_dual;
-  ex.z     = (int(c.z)&1)^is_dual;
-  
-  sz.x     = (ex.x == 1)?(big_sz):(small_sz);
-  sz.z     = (ex.z == 1)?(big_sz):(small_sz);
-
-  for(i[2] = -1 ; i[2] <= 1 ;i[2]+=2)
-      for(i[0] = -1 ; i[0] <= 1 ;i[0]+=2)
-      {
-        p[pos]    = c+i*sz;
-        p[pos].xz = max(p[pos].xz,ug_bl);
-        p[pos].xz = min(p[pos].xz,ug_tr);
-        p[pos].y  = texture2DRect(rawdata_texture, ((c+i*ex).xz)/2).x;
-        pos++;
-      }
-
-  return p;
-}
 
 void draw_cylinder(vec3 cyl_pt1,vec3 cyl_pt2)
 {
@@ -108,21 +73,15 @@ void draw_cylinder(vec3 cyl_pt1,vec3 cyl_pt2)
     }
     EndPrimitive();
   }
-
 }
 
 void main()
 {
-  for(int i=0; i< gl_VerticesIn; i++)
+  for(int i=0; i< gl_VerticesIn; i += 2)
   {
-    vec3[4] q = get_quad(gl_PositionIn[i].xyz);
-
-    gl_FrontColor     = gl_FrontColorIn[i];
+    gl_FrontColor = gl_FrontColorIn[i];
     
-    draw_cylinder(q[0],q[1]);
-    draw_cylinder(q[1],q[3]);
-    draw_cylinder(q[3],q[2]);
-    draw_cylinder(q[2],q[0]);
+    draw_cylinder(gl_PositionIn[i].xyz,gl_PositionIn[i+1].xyz);
   } 
 }
 
