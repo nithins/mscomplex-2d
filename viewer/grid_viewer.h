@@ -42,13 +42,17 @@ namespace grid
     uint                   index;
 
     renderable_sp_t        ren[GRADDIR_COUNT];
+#ifdef VIEWER_RENDER_AWESOME
+    renderable_sp_t        endpt_ren[GRADDIR_COUNT];
+#endif
+
     bool                   show[GRADDIR_COUNT];
     glutils::color_t       color[GRADDIR_COUNT];
 
     disc_rendata_t(cellid_t c,uint i);
     ~disc_rendata_t();
 
-    void render();
+    void render(const grid_ren_data_t &);
     bool update(mscomplex_t *,const grid_ren_data_t& grd);
   };
 

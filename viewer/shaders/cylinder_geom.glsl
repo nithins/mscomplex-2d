@@ -5,7 +5,7 @@
 
 const float line_sz   = 1.0;
 
-const float ug_cylinder_radius = 4;
+uniform float ug_cylinder_radius = 0.4;
 
 varying out vec3  f_wc_p0;
 varying out vec3  f_wc_p1;

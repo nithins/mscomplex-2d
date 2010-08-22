@@ -39,7 +39,7 @@ glutils::color_t g_grid_grad_colors[grid::gc_grid_dim] =
 glutils::color_t g_disc_colors[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
 {
   {
-    glutils::color_t(0.65,0.65,0.55 ),
+    glutils::color_t(0.65,0.65,0.65 ),
     glutils::color_t(0.85,0.65,0.75 ),
     glutils::color_t(0.0,0.0,0.0 ),
   },
@@ -66,16 +66,21 @@ double g_max_cp_size  = 0.05;
 #endif
 double g_max_cp_raise = 0.1;
 
+#ifdef VIEWER_RENDER_AWESOME
 typedef boost::shared_ptr<GLSLProgram> glsl_program_sp_t;
 
 glsl_program_sp_t s_grad_shader;
 glsl_program_sp_t s_sphere_shader;
 glsl_program_sp_t s_cylinder_shader;
 
+#endif
+
+
 namespace grid
 {
   void octtree_piece_rendata::init()
   {
+#ifdef VIEWER_RENDER_AWESOME
     std::string log;
 
     s_grad_shader.reset
@@ -104,6 +109,7 @@ namespace grid
 
     if(log.size() != 0 )
       throw std::runtime_error("******cylinder_shader compile error*******\n"+log);
+#endif
   }
 
   viewer_t::viewer_t
@@ -214,13 +220,13 @@ namespace grid
 
       glPushMatrix();
 
-      glLineWidth(4.0);
+//      glLineWidth(4.0);
 
-      glTranslatef(0,m_ren_data.m_cp_raise/4,0);
+//      glTranslatef(0,m_ren_data.m_cp_raise/4,0);
 
-      m_surf_ren->render();
+//      m_surf_ren->render();
 
-      glLineWidth(1.0);
+//      glLineWidth(1.0);
 
       glPopMatrix();
 #endif
@@ -756,7 +762,7 @@ namespace grid
     for(disc_rendata_sp_set_t::iterator it = active_disc_rens.begin();
         it != active_disc_rens.end() ; ++it)
     {
-      (*it)->render();
+      (*it)->render(grd);
     }
     glTranslatef(0,grd.m_cp_raise/2,0);
 #ifdef VIEWER_RENDER_AWESOME
@@ -872,21 +878,38 @@ namespace grid
 
   }
 
-  void disc_rendata_t::render()
+  void disc_rendata_t::render(const grid_ren_data_t &grd)
   {
     for(uint dir = 0 ; dir<2;++dir)
     {
       if(show[dir] && ren[dir] != NULL)
       {
 #ifdef VIEWER_RENDER_AWESOME
-        if(index == 1) s_cylinder_shader->use();
+        if(index == 1)
+        {
+          s_cylinder_shader->use();
+
+          s_cylinder_shader->sendUniform("ug_cylinder_radius",(float)grd.m_cp_size/3);
+        }
 #endif
         glColor3dv(color[dir].data());
 
         ren[dir]->render();
 
 #ifdef VIEWER_RENDER_AWESOME
-        if(index == 1) s_cylinder_shader->disable();
+        if(index == 1)
+        {
+          s_cylinder_shader->disable();
+
+          s_sphere_shader->use();
+
+          s_sphere_shader->sendUniform("g_wc_radius",(float)grd.m_cp_size/3);
+
+          endpt_ren[dir]->render();
+
+          s_sphere_shader->disable();
+
+        }
 #endif
       }
     }
@@ -973,8 +996,15 @@ namespace grid
                             grd.cellid_to_index(v[1])));
         }
 
+        bufobj_ptr_t lbo = make_buf_obj(llist);
+
         ren[dir].reset(create_buffered_lines_ren
-                   (grd.m_cell_bo,make_buf_obj(llist)));
+                   (grd.m_cell_bo,lbo));
+
+#ifdef VIEWER_RENDER_AWESOME
+        endpt_ren[dir].reset(create_buffered_points_ren
+                             (grd.m_cell_bo,recast_buf_obj_num_components(lbo,1)));
+#endif
       }
 
       else if(dir == 1 && cp->index == 1)
@@ -1003,6 +1033,17 @@ namespace grid
 
         ren[dir].reset(create_buffered_lines_ren
                    (grd.m_cell_bo,make_buf_obj(llist)));
+
+        bufobj_ptr_t lbo = make_buf_obj(llist);
+
+        ren[dir].reset(create_buffered_lines_ren
+                   (grd.m_cell_bo,lbo));
+
+#ifdef VIEWER_RENDER_AWESOME
+        endpt_ren[dir].reset(create_buffered_points_ren
+                             (grd.m_cell_bo,recast_buf_obj_num_components(lbo,1)));
+#endif
+
       }
       else if(dir == 1 && cp->index == 0)
       {
