@@ -5,10 +5,10 @@
 
 #include <timer.h>
 
-#include <QFile>
 #include <prefix_scan.h>
 #include <bitonic_sort.h>
 #include <logutil.h>
+#include <oclsources.h>
 
 #include <grid_mscomplex.h>
 
@@ -100,8 +100,8 @@ BitonicSortProgram  s_bi_sort;               // bitonic sorting program
 
 struct oclProgInfo
 {
-  const char * sourcefile;
-  const char * additional_include;
+  const char * source;
+  const char * header;
   const char * compilation_flags;
   cl_program   _handle;
 };
@@ -116,9 +116,9 @@ enum eOclProgram
 };
 
 oclProgInfo s_programs[OCLPROG_END-OCLPROG_BEGIN] = {
-  {":/oclsources/assigngradient.cl",":/oclsources/common_funcs.cl","",NULL},
-  {":/oclsources/collate_critpts.cl",":/oclsources/common_funcs.cl","",NULL},
-  {":/oclsources/bfs_watershed.cl",":/oclsources/common_funcs.cl","",NULL},
+  {assigngradient_cl,common_funcs_cl,"",NULL},
+  {collate_critpts_cl,common_funcs_cl,"",NULL},
+  {bfs_watershed_cl,common_funcs_cl,"",NULL},
 };
 
 struct oclKernelSourceInfo
@@ -162,24 +162,10 @@ const int max_threads_1D   = 128;
 const int max_threads_2D_x = 16;
 const int max_threads_2D_y = 16;
 
-void compile_cl_program(std::string prog_filename,std::string header_filename,
+void compile_cl_program(std::string prog_src,std::string header,
                         std::string compile_flags,cl_program &prog,cl_context & context,cl_device_id &device_id)
 {
-  std::string prog_src;
-
-  if(header_filename.size() != 0 )
-  {
-    QFile head_src_qf ( header_filename.c_str() );
-    head_src_qf.open(QIODevice::ReadOnly);
-
-    prog_src = head_src_qf.readAll().constData();
-    prog_src += "\n";
-  }
-
-  QFile prog_src_qf ( prog_filename.c_str() );
-  prog_src_qf.open(QIODevice::ReadOnly);
-
-  prog_src += prog_src_qf.readAll().constData();
+  prog_src = header + prog_src;
 
   int error_code;               // error code returned from api calls
 
@@ -232,8 +218,7 @@ void compile_cl_program(std::string prog_filename,std::string header_filename,
       clGetProgramInfo(prog,CL_PROGRAM_BINARIES,
                        sizeof(ptx_buffer),&ptx_buffer,NULL);
 
-      std::string ptx_filename(prog_src_qf.fileName().toStdString());
-      ptx_filename += ".ptx";
+      std::string ptx_filename("failed.ptx");
 
 //      _LOG_TO_FILE(std::string(ptx_buffer),ptx_filename.c_str());
       delete []ptx_buffer;
@@ -317,8 +302,8 @@ namespace grid
     for(uint pgm_idx = OCLPROG_BEGIN;pgm_idx != OCLPROG_END; pgm_idx++ )
     {
 
-      compile_cl_program(s_programs[pgm_idx].sourcefile,
-                         s_programs[pgm_idx].additional_include,
+      compile_cl_program(s_programs[pgm_idx].source,
+                         s_programs[pgm_idx].header,
                          s_programs[pgm_idx].compilation_flags,
                          s_programs[pgm_idx]._handle,
                          s_context,s_device_id);

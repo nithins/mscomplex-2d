@@ -1,9 +1,13 @@
 #include <exception>
 #include <string>
 
-#include <grid_viewer_mainwindow.h>
-#include <grid_datamanager.h>
+#include <config.h>
 
+#ifndef NO_GUI
+#include <grid_viewer_mainwindow.h>
+#endif
+
+#include <grid_datamanager.h>
 #include <cpputils.h>
 
 #include <boost/program_options.hpp>
@@ -18,9 +22,9 @@ namespace bpo = boost::program_options ;
 int main(int ac , char **av)
 {
   string filename;
-
+#ifndef NO_GUI
   string elev_filename;
-
+#endif
   n_vector_t<int,2> dim;
 
   bool   single_thread = false;
@@ -35,7 +39,9 @@ int main(int ac , char **av)
 
   uint   num_parallel  = 1;
 
+#ifndef NO_GUI
   bool   gui = false;
+#endif
 
   bool   save_mfolds_to_file = false;
 
@@ -43,7 +49,9 @@ int main(int ac , char **av)
   desc.add_options()
       ("help,h", "produce help message")
       ("file,f",bpo::value<string >(), "grid file name")
+#ifndef NO_GUI
       ("elevation-file,e",bpo::value<string >(), "name of file for elevation (gui only)")
+#endif
       ("dim,d", bpo::value<n_vector_t<int,2> >(), "dim of grid entered as (x,y)")
       ("single-thread-mode,s", "single threaded mode")
       ("cl","use OpenCL ")
@@ -51,7 +59,9 @@ int main(int ac , char **av)
       ("num-levels,n",bpo::value<int>(),"num levels to partition into")
       ("simp-tresh,t",bpo::value<double>(),"simplification treshold")
       ("num-parallel,p",bpo::value<int>(),"num subdomains to process in parallel")
+#ifndef NO_GUI
       ("gui,g","show gui")
+#endif
       ("write-mfolds,w","write asc/des manifolds to disc")
       ;
 
@@ -76,7 +86,9 @@ int main(int ac , char **av)
   else
     throw invalid_argument("no filename specified");
 
+#ifndef NO_GUI
   elev_filename = filename;
+#endif
 
   if (vm.count("cl"))
     use_ocl = true;
@@ -96,14 +108,18 @@ int main(int ac , char **av)
   if (vm.count("num-parallel"))
     num_parallel = vm["num-parallel"].as<int>();
 
+#ifndef NO_GUI
   if (vm.count("gui"))
     gui = true;
+#endif
 
   if(vm.count("write-mfolds"))
     save_mfolds_to_file = true;
 
+#ifndef NO_GUI
   if (vm.count("elevation-file"))
     elev_filename = vm["elevation-file"].as<string>();
+#endif
 
   grid::data_manager_t * gdm = new grid::data_manager_t
       (filename,dim,
@@ -114,6 +130,7 @@ int main(int ac , char **av)
        num_parallel,
        save_mfolds_to_file);
 
+#ifndef NO_GUI
   if(gui)
   {
       QApplication application(ac,av);
@@ -130,4 +147,7 @@ int main(int ac , char **av)
   {
     delete gdm;
   }
+#else
+  delete gdm;
+#endif
 }

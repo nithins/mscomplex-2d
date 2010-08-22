@@ -7,8 +7,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <algorithm>
-
-#include <QFile>
+#include <oclsources.h>
 
 #define NUM_BANKS       (16)
 size_t  GROUP_SIZE      = 256;
@@ -474,13 +473,7 @@ void PrefixScan::init(cl_context &ComputeContext,cl_device_id &ComputeDeviceId,
 
   // Load the compute program from disk into a cstring buffer
   //
-
-  QFile prog_src_file ( ":/oclsources/scan_kernel.cl" );
-  prog_src_file.open(QIODevice::ReadOnly);
-
-  QByteArray prog_src_ba = prog_src_file.readAll().constData();
-
-  const char * source = prog_src_ba.constData();
+  const char * source = scan_kernel_cl;
 
   // Create the compute program from the source buffer
   //

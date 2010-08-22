@@ -21,6 +21,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <oclsources.h>
 
 #define _CHECKCL_ERR_CODE(_ERROR,_MESSAGE)\
 if(_ERROR != CL_SUCCESS) throw std::runtime_error(_MESSAGE);
@@ -55,8 +56,7 @@ uint nextPow2(uint x)
 void BitonicSortProgram::initBitonicSort(cl_context cxGPUContext,cl_device_id cdDevice){
   cl_int ciErrNum;
 
-  compile_cl_program(":/oclsources/bitonic_sort.cl","",compileOptions,cpBitonicSort,cxGPUContext,cdDevice);
-
+  compile_cl_program(bitonic_sort_cl,"",compileOptions,cpBitonicSort,cxGPUContext,cdDevice);
 
   ckBitonicSortLocal = clCreateKernel(cpBitonicSort, "bitonicSortLocal", &ciErrNum);
   _CHECKCL_ERR_CODE(ciErrNum,"failed to create bitonicSortLocal Kernel");

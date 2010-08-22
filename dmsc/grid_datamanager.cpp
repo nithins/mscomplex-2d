@@ -417,11 +417,14 @@ namespace grid
       dp->dataset->clear();
     }
 
-    std::stringstream ss;
+    if(m_save_mfolds_to_file)
+    {
+      std::stringstream ss;
 
-    ss<<"dp_"/*<<dp->m_pieceno%num_parallel*/<<"_disc_";
+      ss<<"dp_"/*<<dp->m_pieceno%num_parallel*/<<"_disc_";
 
-    dp->msgraph->write_discs(ss.str());
+      dp->msgraph->write_discs(ss.str());
+    }
 
     if(m_compute_out_of_core)
     {
