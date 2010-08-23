@@ -40,11 +40,11 @@ namespace grid
     dataset_t   *dataset;
     mscomplex_t *msgraph;
 
-    uint level;
+    int level;
 
-    uint m_pieceno;
+    int m_pieceno;
 
-    datapiece_t (uint l);
+    datapiece_t ();
 
     std::string label();
   };
@@ -63,6 +63,7 @@ namespace grid
     cellid_t                     m_size;
 
     u_int                        m_num_levels;
+    u_int                        m_num_subdomains;
     double                       m_simp_tresh;
     bool                         m_single_threaded_mode;
     bool                         m_use_ocl;
@@ -97,13 +98,15 @@ namespace grid
 
     uint getMaxDataBufItems();
 
-    void waitForThreadsInRange(uint,uint);
+    void waitForPiecesInRange(int,int);
+
+    void clearDatasetsInRange(uint,uint);
 
     void computeMsGraph ( datapiece_t  * );
 
     void computeMsGraphInRange(uint ,uint );
 
-    void finalMergeDownPiecesInRange(uint start,uint end);
+    void mergeDownPiecesInRange(int start,int end);
 
     void collectManifold( datapiece_t  * );
 

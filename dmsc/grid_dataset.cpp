@@ -1197,7 +1197,7 @@ namespace grid
     {
       critpt_t * cp = msgraph->m_cps[i];
 
-//      if(cp->index != 1) continue;
+      if(cp->index != 1) continue;
 
       for(uint dir = 0 ; dir < GRADDIR_COUNT;++dir)
       {

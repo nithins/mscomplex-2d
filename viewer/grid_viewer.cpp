@@ -139,7 +139,7 @@ namespace grid
 
   viewer_t::~viewer_t()
   {
-    for ( uint i = 0 ; i < m_grid_piece_rens.size();i++ )
+    for ( uint i = 1 ; i < m_grid_piece_rens.size();i++ )
       delete m_grid_piece_rens[i];
 
     m_grid_piece_rens.clear();
