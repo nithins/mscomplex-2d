@@ -44,7 +44,12 @@ namespace grid
     {
       CELLFLAG_UNKNOWN = 0,
       CELLFLAG_PAIRED  = 1,
-      CELLFLAG_CRITCAL = 2,
+      CELLFLAG_CRITICAL = 2,
+
+      CELLFLAG_PAIR_TOP    = 4,
+      CELLFLAG_PAIR_BOTTOM = 8,
+      CELLFLAG_PAIR_LEFT   = 16,
+      CELLFLAG_PAIR_RIGHT  = 32,
     };
 
     typedef int8_t                            cell_flag_t;
@@ -73,7 +78,6 @@ namespace grid
 
     varray_ref_t      *m_vert_fns_ref;
 
-    cellpair_array_t  *m_cell_pairs;
     cellpair_array_t  *m_cell_own;
     cellflag_array_t  *m_cell_flags;
     cellid_list_t      m_critical_cells;

@@ -360,10 +360,12 @@ namespace grid
     cell_fg_imgfmt.image_channel_data_type = CL_UNSIGNED_INT8;
     cell_fg_imgfmt.image_channel_order     = CL_R;
 
-    m_cell_pair_img = clCreateImage2D
-                      (s_context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
-                       &cell_pr_imgfmt,cell_img_rgn[0],cell_img_rgn[1],0,
-                       (*m_cell_pairs).data(),&error_code);
+//    m_cell_pair_img = clCreateImage2D
+//                      (s_context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+//                       &cell_pr_imgfmt,cell_img_rgn[0],cell_img_rgn[1],0,
+//                       (*m_cell_pairs).data(),&error_code);
+
+    throw std::runtime_error("fix this");
 
     _CHECKCL_ERR_CODE(error_code,"Failed to create cell pair image");
 
@@ -420,9 +422,11 @@ namespace grid
 
     int error_code;
 
-    error_code = clEnqueueReadImage( commands, m_cell_pair_img, CL_TRUE,
-                                     cell_img_ogn,cell_img_rgn,0,0,
-                                     (*m_cell_pairs).data(),0,NULL,NULL);
+//    error_code = clEnqueueReadImage( commands, m_cell_pair_img, CL_TRUE,
+//                                     cell_img_ogn,cell_img_rgn,0,0,
+//                                     (*m_cell_pairs).data(),0,NULL,NULL);
+
+    throw std::runtime_error("fix this");
 
     _CHECKCL_ERR_CODE(error_code,"Failed to read back cell pair image");
 
@@ -1197,7 +1201,7 @@ namespace grid
     {
       critpt_t * cp = msgraph->m_cps[i];
 
-      if(cp->index != 1) continue;
+//      if(cp->index != 1) continue;
 
       for(uint dir = 0 ; dir < GRADDIR_COUNT;++dir)
       {
@@ -1386,7 +1390,6 @@ namespace grid
   {
     m_vert_fns_ref = NULL;
     m_cell_flags   = NULL;
-    m_cell_pairs   = NULL;
     m_cell_own     = NULL;
   }
 
@@ -1402,13 +1405,11 @@ namespace grid
     rect_size_t   s = m_ext_rect.size();
 
     m_cell_flags = new cellflag_array_t( (boost::extents[1+s[0]][1+s[1]]));
-    m_cell_pairs = new cellpair_array_t( (boost::extents[1+s[0]][1+s[1]]));
     m_cell_own   = new cellpair_array_t( (boost::extents[1+s[0]][1+s[1]]));
 
     rect_point_t bl = m_ext_rect.lower_corner();
 
     (*m_cell_flags).reindex (bl);
-    (*m_cell_pairs).reindex (bl);
     (*m_cell_own).reindex (bl);
 
     uint num_cells = (1+s[0])*(s[1]+1);
@@ -1422,9 +1423,6 @@ namespace grid
     if(m_cell_flags != NULL)
       delete m_cell_flags;
 
-    if(m_cell_pairs != NULL)
-      delete m_cell_pairs;
-
     if(m_cell_own != NULL)
       delete m_cell_own;
 
@@ -1434,7 +1432,6 @@ namespace grid
     m_saddle_incidence_idx_offset.clear();
 
     m_cell_flags   = NULL;
-    m_cell_pairs   = NULL;
     m_cell_own     = NULL;
   }
 
@@ -1467,7 +1464,14 @@ namespace grid
     if ((*m_cell_flags) (c) &CELLFLAG_PAIRED == 0)
       throw std::logic_error ("invalid pair requested");
 
-    return (*m_cell_pairs) (c);
+    cellid_t p = c;
+
+    if((*m_cell_flags)(c)&CELLFLAG_PAIR_LEFT) p[0] -=1;
+    if((*m_cell_flags)(c)&CELLFLAG_PAIR_RIGHT) p[0] +=1;
+    if((*m_cell_flags)(c)&CELLFLAG_PAIR_BOTTOM) p[1] -=1;
+    if((*m_cell_flags)(c)&CELLFLAG_PAIR_TOP) p[1] +=1;
+
+    return p;
   }
 
   bool dataset_t::compareCells( cellid_t c1,cellid_t  c2 ) const
@@ -1631,7 +1635,7 @@ namespace grid
 
   bool dataset_t::isCellCritical (cellid_t c) const
   {
-    return ((*m_cell_flags) (c) & CELLFLAG_CRITCAL);
+    return ((*m_cell_flags) (c) & CELLFLAG_CRITICAL);
   }
 
   bool dataset_t::isCellPaired (cellid_t c) const
@@ -1641,16 +1645,28 @@ namespace grid
 
   void dataset_t::pairCells (cellid_t c,cellid_t p)
   {
-    (*m_cell_pairs) (c) = p;
-    (*m_cell_pairs) (p) = c;
+    uint cf = (*m_cell_flags) (c);
+    uint pf = (*m_cell_flags) (c);
 
-    (*m_cell_flags) (c) = (*m_cell_flags) (c) |CELLFLAG_PAIRED;
-    (*m_cell_flags) (p) = (*m_cell_flags) (p) |CELLFLAG_PAIRED;
+    cf |= ((c[0]>p[0])?(CELLFLAG_PAIR_LEFT):(CELLFLAG_UNKNOWN));
+    cf |= ((c[0]<p[0])?(CELLFLAG_PAIR_RIGHT):(CELLFLAG_UNKNOWN));
+    cf |= ((c[1]>p[1])?(CELLFLAG_PAIR_BOTTOM):(CELLFLAG_UNKNOWN));
+    cf |= ((c[1]<p[1])?(CELLFLAG_PAIR_TOP):(CELLFLAG_UNKNOWN));
+    cf |= CELLFLAG_PAIRED;
+
+    pf |= ((p[0]>c[0])?(CELLFLAG_PAIR_LEFT):(CELLFLAG_UNKNOWN));
+    pf |= ((p[0]<c[0])?(CELLFLAG_PAIR_RIGHT):(CELLFLAG_UNKNOWN));
+    pf |= ((p[1]>c[1])?(CELLFLAG_PAIR_BOTTOM):(CELLFLAG_UNKNOWN));
+    pf |= ((p[1]<c[1])?(CELLFLAG_PAIR_TOP):(CELLFLAG_UNKNOWN));
+    pf |= CELLFLAG_PAIRED;
+
+    (*m_cell_flags) (c) = cf;
+    (*m_cell_flags) (p) = pf;
   }
 
   void dataset_t::markCellCritical (cellid_t c)
   {
-    (*m_cell_flags) (c) = (*m_cell_flags) (c) |CELLFLAG_CRITCAL;
+    (*m_cell_flags) (c) = (*m_cell_flags) (c) |CELLFLAG_CRITICAL;
   }
 
   bool dataset_t::isTrueBoundryCell (cellid_t c) const
@@ -1906,7 +1922,7 @@ namespace grid
       for (cell_coord_t x = m_ext_rect.lower_corner()[0]; x <= m_ext_rect.upper_corner()[0];x += 1)
       {
         cellid_t c(x,y);
-        std::cout<<(*m_cell_pairs)(c)<<" ";
+        std::cout<<getCellPairId(c)<<" ";
       }
       std::cout<<std::endl;
     }
