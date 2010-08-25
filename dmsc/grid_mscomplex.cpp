@@ -678,7 +678,6 @@ namespace grid
   {
     for(uint i = 0 ; i < m_cps.size(); ++i)
     {
-
       if(!m_cps[i]->is_paired)
       {
         if(m_rect.contains(m_cps[i]->cellid))
@@ -692,39 +691,29 @@ namespace grid
         continue;
       }
 
+      if(m_cps[i]->index != 1) continue;
+
       uint_pair_t e(i,m_cps[i]->pair_idx);
-
-      order_pr_by_cp_index(this,e);
-
-      if(e[0] != i) continue;
 
       critpt_t * cp[] = {m_cps[e[0]],m_cps[e[1]]};
 
-      ensure_ordered_index_one_separation(this,e);
-
       ensure_pairing(this,e);
 
-      for(uint dir = 0 ; dir < 2 ;++dir)
+      uint dir = (cp[1]->index/2); // 1 if saddle-max 0 if saddle-min
+
+      bool need_disc = false;
+
+      for(conn_iter_t it  = cp[1]->conn[dir^1].begin();
+      it != cp[1]->conn[dir^1].end(); ++it)
       {
-        bool need_disc = false;
+        ensure_cp_is_not_paired(this,*it);
 
-        if(!m_rect.contains(cp[dir^1]->cellid))
-          continue;
+        m_cps[*it]->contrib[dir].push_back(e[0]);
 
-        for(conn_iter_t it  = cp[dir]->conn[dir].begin();
-                        it != cp[dir]->conn[dir].end(); ++it)
-        {
-          ensure_cp_is_not_paired(this,*it);
-
-          m_cps[*it]->contrib[dir^1].push_back(e[dir^1]);
-
-          need_disc = true;
-        }
-
-        if(need_disc)
-          cp[dir^1]->disc[dir^1].push_back(cp[dir^1]->cellid);
-
+        need_disc = true;
       }
+
+      if(need_disc) cp[0]->disc[dir].push_back(cp[0]->cellid);
     }
   }
 

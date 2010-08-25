@@ -85,10 +85,11 @@ namespace grid
     std::vector<uint>  m_saddle_incidence_idx_offset;
     std::vector<uint>  m_saddle_incidence_idx;
 
-    cl_mem             m_cell_pair_img;
+
     cl_mem             m_cell_flag_img;
     cl_mem             m_critical_cells_buf;
     cl_mem             m_cell_own_img;
+    cl_mem             m_cell_cp_idx_map_buf;
 
     pt_comp_t          m_ptcomp;
 
@@ -137,9 +138,9 @@ namespace grid
 
     void  assignGradients_ocl(cl_command_queue &commands);
 
-    void  read_pair_img_ocl(cl_command_queue &commands);
-
     void  read_flag_img_ocl(cl_command_queue &commands);
+
+    void  clear_flag_img_ocl();
 
     void  read_own_img_ocl(cl_command_queue &commands);
 

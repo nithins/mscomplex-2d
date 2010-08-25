@@ -133,7 +133,7 @@ namespace grid
     m_ren_data.m_roi_base_pt  =
         ((m_ren_data.m_roi.upper_corner() +  m_ren_data.m_roi.lower_corner())/2);
 
-    for(uint i = 0 ;i < m_gdm->m_pieces.size();++i)
+    for(uint i = 1 ;i < m_gdm->m_pieces.size();++i)
       m_grid_piece_rens.push_back(new octtree_piece_rendata(m_gdm->m_pieces.at(i)));
   }
 

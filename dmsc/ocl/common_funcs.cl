@@ -3,14 +3,24 @@
 #define cell_flag_t  uchar
 
 const sampler_t cell_fg_sampler  = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;
-const sampler_t cell_pr_sampler  = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;
-
 
 short get_cell_dim(const short2 c)
 {
   int dim = (c.x&0x01) + (c.y&0x01);
   return dim;
 }
+
+enum eCellFlags
+{
+  CELLFLAG_UNKNOWN = 0,
+  CELLFLAG_PAIRED  = 1,
+  CELLFLAG_CRITICAL = 2,
+
+  CELLFLAG_PAIR_TOP    = 4,
+  CELLFLAG_PAIR_BOTTOM = 8,
+  CELLFLAG_PAIR_LEFT   = 16,
+  CELLFLAG_PAIR_RIGHT  = 32,
+};
 
 short get_cell_facets(const short2 c,short2 *f)
 {
@@ -123,12 +133,12 @@ short get_cell_points(const short2 c,short2 *p)
 
 int is_cell_critical(unsigned int flag)
 {  
-   return (flag&0x02)?1:0;  
+   return (flag&CELLFLAG_CRITICAL)?1:0;  
 }
 
 int is_cell_paired(unsigned int flag)
 {
-   return (flag&0x01)?1:0;
+   return (flag&CELLFLAG_PAIRED)?1:0;
 }
 
 int is_cell_on_true_boundry(short2 c, short2 bb_ext_sz)
@@ -179,38 +189,40 @@ void write_cell_flag(short2 c,unsigned int flag ,__write_only image2d_t cell_fg_
   write_imageui(cell_fg_img, imgcrd,val);
 }
 
-void write_cell_pair(short2 c,short2 p,short2 ext_bl ,__write_only image2d_t cell_pr_img)
-{
+void write_cell_pair(short2 c,short2 p,__write_only image2d_t cell_fg_img)
+{  
   int2 imgcrd;
+  
+  unsigned int f = 0;
 
   imgcrd.x = c.y;
   imgcrd.y = c.x;
+  
+  f |= ((c[0]>p[0])?(CELLFLAG_PAIR_LEFT):(CELLFLAG_UNKNOWN));
+  f |= ((c[0]<p[0])?(CELLFLAG_PAIR_RIGHT):(CELLFLAG_UNKNOWN));
+  f |= ((c[1]>p[1])?(CELLFLAG_PAIR_BOTTOM):(CELLFLAG_UNKNOWN));
+  f |= ((c[1]<p[1])?(CELLFLAG_PAIR_TOP):(CELLFLAG_UNKNOWN));
+  f |= CELLFLAG_PAIRED;
 
+  uint4 val;
+  val.x = f;
+  val.y = 0;
+  val.z = 0;
+  val.w = 0;
 
-  int4 pr;
-  pr.x = p.x + ext_bl.x;
-  pr.y = p.y + ext_bl.y;
-  pr.z = 0;
-  pr.w = 0;
-
-  write_imagei(cell_pr_img,imgcrd,pr);
+  write_imageui(cell_fg_img,imgcrd,val);
 }
 
-short2  get_cell_pair(short2 c,short2 ext_bl, __read_only image2d_t cell_pr_img)
+short2  get_cell_pair(short2 c, unsigned int f)
 {
-  int2 imgcrd;
+  short2 p; p.x = c.x;p.y = c.y;
+  
+  if((f)&CELLFLAG_PAIR_LEFT) p.x -=1;
+  if((f)&CELLFLAG_PAIR_RIGHT) p.x +=1;
+  if((f)&CELLFLAG_PAIR_BOTTOM) p.y -=1;
+  if((f)&CELLFLAG_PAIR_TOP) p.y +=1;
 
-  imgcrd.x = c.y;
-  imgcrd.y = c.x;
-
-  int4 val = read_imagei(cell_pr_img, cell_pr_sampler, imgcrd);
-
-  short2 pr;
-
-  pr.x = val.x - ext_bl.x;
-  pr.y = val.y - ext_bl.y;
-
-  return pr;
+  return p;
 }
 
 const sampler_t cell_own_sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_NONE | CLK_FILTER_NEAREST;

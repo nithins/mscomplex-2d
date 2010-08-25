@@ -354,20 +354,8 @@ namespace grid
 
     cl_image_format cell_pr_imgfmt,cell_fg_imgfmt;
 
-    cell_pr_imgfmt.image_channel_data_type = CL_SIGNED_INT16;
-    cell_pr_imgfmt.image_channel_order     = CL_RG;
-
     cell_fg_imgfmt.image_channel_data_type = CL_UNSIGNED_INT8;
     cell_fg_imgfmt.image_channel_order     = CL_R;
-
-//    m_cell_pair_img = clCreateImage2D
-//                      (s_context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
-//                       &cell_pr_imgfmt,cell_img_rgn[0],cell_img_rgn[1],0,
-//                       (*m_cell_pairs).data(),&error_code);
-
-    throw std::runtime_error("fix this");
-
-    _CHECKCL_ERR_CODE(error_code,"Failed to create cell pair image");
 
     m_cell_flag_img = clCreateImage2D
                       (s_context,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
@@ -395,6 +383,14 @@ namespace grid
     _CHECKCL_ERR_CODE(error_code,"Failed to read back cell flag image");
   }
 
+  void  dataset_t::clear_flag_img_ocl()
+  {
+    if(m_cell_flag_img != NULL)
+      clReleaseMemObject(m_cell_flag_img);
+
+    m_cell_flag_img = NULL;
+  }
+
   void  dataset_t::read_own_img_ocl(cl_command_queue &commands)
   {
 
@@ -412,31 +408,8 @@ namespace grid
     _CHECKCL_ERR_CODE(error_code,"Failed to read back cell flag image");
   }
 
-  void  dataset_t::read_pair_img_ocl(cl_command_queue &commands)
-  {
-
-    rect_size_t sz = m_ext_rect.size();
-
-    size_t cell_img_ogn[3] = {0,0,0};
-    size_t cell_img_rgn[3] = {sz[1]+1,sz[0]+1,1};
-
-    int error_code;
-
-//    error_code = clEnqueueReadImage( commands, m_cell_pair_img, CL_TRUE,
-//                                     cell_img_ogn,cell_img_rgn,0,0,
-//                                     (*m_cell_pairs).data(),0,NULL,NULL);
-
-    throw std::runtime_error("fix this");
-
-    _CHECKCL_ERR_CODE(error_code,"Failed to read back cell pair image");
-
-  }
-
   void  dataset_t::clear_buffers_ocl()
   {
-    if(m_cell_pair_img != NULL)
-      clReleaseMemObject(m_cell_pair_img);
-
     if(m_cell_flag_img != NULL)
       clReleaseMemObject(m_cell_flag_img);
 
@@ -446,10 +419,13 @@ namespace grid
     if(m_cell_own_img != NULL)
       clReleaseMemObject(m_cell_own_img);
 
-    m_cell_pair_img = NULL;
+    if(m_cell_cp_idx_map_buf != NULL)
+      clReleaseMemObject(m_cell_cp_idx_map_buf);
+
     m_cell_flag_img = NULL;
     m_critical_cells_buf = NULL;
     m_cell_own_img = NULL;
+    m_cell_cp_idx_map_buf = NULL;
   }
 
   void  dataset_t::work_ocl(bool collect_cps )
@@ -471,27 +447,30 @@ namespace grid
 
     _LOG_TIMER(timer,"Gradient Assignment Done");
 
-    read_pair_img_ocl(commands);
     read_flag_img_ocl(commands);
 
-    _LOG_TIMER(timer,"Read back Pair and flag results");
+    _LOG_TIMER(timer,"Read back Flag results");
+
+    assignCellOwnerExtrema_ocl(commands);
+
+    _LOG_TIMER(timer,"Watershed Done");
+
+    clear_flag_img_ocl();
+
+    read_own_img_ocl(commands);
+
+    _LOG_TIMER(timer,"read back own image");
 
     collateCritcalPoints_ocl(commands);
 
     _LOG_TIMER(timer,"Collated crit pts");
 
-    uint it_ct =   assignCellOwnerExtrema_ocl(commands);
-
     if(collect_cps)
     {
-      _LOG_TIMER(timer,"Watershed Done in "<<it_ct<<" iterations");
+      _LOG_TIMER(timer,"Saddle incidence collection Done");
 
       collect_saddle_conn_ocl(commands);
     }
-
-    _LOG_TIMER(timer,"Saddle incidence collection Done");
-
-    read_own_img_ocl(commands);
 
     clear_buffers_ocl();
 
@@ -548,7 +527,6 @@ namespace grid
 
     error_code = 0;
     error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &vfn_img_cl);
-    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &int_bl);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &int_tr);
@@ -580,8 +558,6 @@ namespace grid
     kernel = s_kernels[OCLKERN_COMPLETE_PAIRINGS]._handle;
 
     error_code = 0;
-    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
-    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_bl);
@@ -606,7 +582,6 @@ namespace grid
     kernel = s_kernels[OCLKERN_MARKBOUNDRY_PAIRS_CRITICAL_1]._handle;
 
     error_code = 0;
-    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &int_bl);
@@ -633,7 +608,6 @@ namespace grid
     kernel = s_kernels[OCLKERN_MARKBOUNDRY_PAIRS_CRITICAL_2]._handle;
 
     error_code = 0;
-    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_bl);
@@ -662,7 +636,7 @@ namespace grid
 
     int grid_size = (ext_sz[0]+1)*(ext_sz[1]+1);
 
-    int critpt_idx_buf_sz = (grid_size+1)*sizeof(uint);
+    int cell_cp_idx_map_buf_sz = (grid_size+1)*sizeof(uint);
 
     cl_kernel kernel;
 
@@ -680,8 +654,8 @@ namespace grid
     ext_tr[0] = m_ext_rect.upper_corner()[0];
     ext_tr[1] = m_ext_rect.upper_corner()[1];
 
-    cl_mem critpt_idx_buf =
-        clCreateBuffer(s_context,CL_MEM_READ_WRITE,critpt_idx_buf_sz,NULL,&error_code);
+    m_cell_cp_idx_map_buf =
+        clCreateBuffer(s_context,CL_MEM_READ_WRITE,cell_cp_idx_map_buf_sz,NULL,&error_code);
 
     _CHECKCL_ERR_CODE(error_code,"couldnt create prefixsum_buf");
 
@@ -690,8 +664,8 @@ namespace grid
     uint a=0;
 
     error_code = 0;
-    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
-    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &critpt_idx_buf);
+    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_own_img);
+    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_cp_idx_map_buf);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_bl);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_tr);
 
@@ -709,14 +683,14 @@ namespace grid
     uint crit_pt_ct = 0 ;
 
     s_pre_scan.CreatePartialSumBuffers(grid_size+1,s_context);
-    s_pre_scan.PreScanBuffer(critpt_idx_buf,critpt_idx_buf,grid_size+1,commands);
+    s_pre_scan.PreScanBuffer(m_cell_cp_idx_map_buf,m_cell_cp_idx_map_buf,grid_size+1,commands);
     s_pre_scan.ReleasePartialSums();
 
 
     _CHECKCL_ERR_CODE(error_code,"Failed to execute kernel");
 
     error_code = clEnqueueReadBuffer
-                 (commands,critpt_idx_buf,CL_TRUE,critpt_idx_buf_sz -sizeof(uint),
+                 (commands,m_cell_cp_idx_map_buf,CL_TRUE,cell_cp_idx_map_buf_sz -sizeof(uint),
                   sizeof(uint),&crit_pt_ct,0,NULL,NULL);
 
     _CHECKCL_ERR_CODE(error_code,"Failed to read crit_pt_ct");
@@ -733,9 +707,8 @@ namespace grid
     a = 0;
 
     error_code = 0;
-    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
-    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
-    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &critpt_idx_buf);
+    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_own_img);
+    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_cp_idx_map_buf);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_critical_cells_buf);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_bl);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_tr);
@@ -757,14 +730,7 @@ namespace grid
                                      crit_pt_id_buf_sz,m_critical_cells.data(),0,NULL,NULL);
 
     _CHECKCL_ERR_CODE(error_code,"Failed to read critpt_id_buf");
-
-    error_code = clReleaseMemObject(critpt_idx_buf);
-
-    _CHECKCL_ERR_CODE(error_code,"Failed to reelase critpt_id_buf");
   }
-
-
-
 
   template <typename T> struct log_2D_array
   {
@@ -899,13 +865,10 @@ namespace grid
 
     cl_mem cell_own_img[2];
 
-    for(int i = 0 ;i < 2; ++i)
-    {
-      cell_own_img[i] = clCreateImage2D
-                        (s_context,CL_MEM_READ_WRITE,
-                         &cell_own_imgfmt,cell_img_rgn[0],cell_img_rgn[1],0,
-                         NULL,&error_code);
-    }
+    cell_own_img[0] = clCreateImage2D
+                      (s_context,CL_MEM_READ_WRITE,
+                       &cell_own_imgfmt,cell_img_rgn[0],cell_img_rgn[1],0,
+                       NULL,&error_code);
 
     _CHECKCL_ERR_CODE(error_code,"Failed to create owner image");
 
@@ -915,7 +878,6 @@ namespace grid
 
     error_code  = 0;
     error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_flag_img);
-    error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &cell_own_img[0]);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_bl);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_short2), &ext_tr);
@@ -930,6 +892,16 @@ namespace grid
     error_code = clFinish(commands);
 
     _CHECKCL_ERR_CODE(error_code,"Failed to execute dobfs_init kernel");
+
+    clear_flag_img_ocl();
+
+    cell_own_img[1] = clCreateImage2D
+                      (s_context,CL_MEM_READ_WRITE,
+                       &cell_own_imgfmt,cell_img_rgn[0],cell_img_rgn[1],0,
+                       NULL,&error_code);
+
+    _CHECKCL_ERR_CODE(error_code,"Failed to create owner image");
+
 
     uint is_changed = 0;
 
@@ -991,8 +963,7 @@ namespace grid
 
     error_code = clReleaseMemObject(cell_own_img[(iteration_ct+1)%2]);
 
-    _CHECKCL_ERR_CODE(error_code,"Failed to release unsaved cell_own_img buf ");
-
+    _CHECKCL_ERR_CODE(error_code,"Failed to release cell own img 2 buf ");
     return iteration_ct;
   }
   template <typename T>
@@ -1089,7 +1060,7 @@ namespace grid
     error_code  = 0;
     error_code  = clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_critical_cells_buf);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_own_img);
-    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_pair_img);
+    error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &m_cell_cp_idx_map_buf);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &incidence_ct_buf);
     error_code |= clSetKernelArg(kernel, a++, sizeof(cl_mem), &incidence_buf);
     error_code |= clSetKernelArg(kernel, a++, sizeof(uint), &critpt_ct);
@@ -1193,26 +1164,91 @@ namespace grid
     }
   }
 
+
+#ifndef NDEBUG
+#define _ASSERT(pred,message) if(!(pred)) throw std::runtime_error(message);
+#else
+  #define _ASSERT(pred,message) ;
+#endif
+
+
   int dataset_t::postMergeFillDiscs(mscomplex_t *msgraph)
   {
     msgraph->add_disc_tracking_seed_cps();
+
+    mscomplex_t::id_cp_map_t id_cp_map;
 
     for(uint i = 0 ; i < msgraph->m_cps.size() ; ++i)
     {
       critpt_t * cp = msgraph->m_cps[i];
 
-//      if(cp->index != 1) continue;
-
-      for(uint dir = 0 ; dir < GRADDIR_COUNT;++dir)
+      if(cp->index == 1)
       {
-        if(cp->disc[dir].size() == 1)
+        for(uint dir = 0 ; dir < GRADDIR_COUNT;++dir)
         {
-          cp->disc[dir].clear();
-          compute_disc_bfs(this,&cp->disc[dir],cp->cellid,(eGradientDirection)dir);
+          if(cp->disc[dir].size() == 1)
+          {
+            cp->disc[dir].clear();
+            compute_disc_bfs(this,&cp->disc[dir],cp->cellid,(eGradientDirection)dir);
+          }
         }
+      }
+      else
+      {
+        if(cp->is_paired == false)
+        {
+          id_cp_map[cp->cellid] = i;
+          continue;
+        }
+
+        for(uint d = 0 ; d < GRADDIR_COUNT;++d)
+          cp->disc[d].clear();
+
+        critpt_t * cp_pr = msgraph->m_cps[cp->pair_idx];
+
+        int dir = cp->index/2;
+
+        _ASSERT(cp_pr->conn[dir].size() == 1,"cp pr must be connected to only one other extrema")
+
+        critpt_t * cp_contrib = msgraph->m_cps[*cp_pr->conn[dir].begin()];
+
+        (*m_cell_own)(cp->cellid) = cp_contrib->cellid;
       }
     }
 
+    cellid_t lc = m_rect.lower_corner(),uc = m_rect.upper_corner();
+
+    for (cell_coord_t y = lc[1]; y <= uc[1];y += 2)
+    {
+      for (cell_coord_t x = lc[0]; x <= uc[0];x += 2)
+      {
+        cellid_t c(x,y);
+
+        cellid_t own = (*m_cell_own)((*m_cell_own)(c));
+
+        _ASSERT(id_cp_map.count(own) == 1,"index not present in id cp map")
+
+        critpt_t * cp = msgraph->m_cps[id_cp_map[own]];
+
+        cp->disc[1].push_back(c);
+      }
+    }
+
+    for (cell_coord_t y = lc[1]+1; y < uc[1];y += 2)
+    {
+      for (cell_coord_t x = lc[0]+1; x < uc[0];x += 2)
+      {
+        cellid_t c(x,y);
+
+        cellid_t own = (*m_cell_own)((*m_cell_own)(c));
+
+        _ASSERT(id_cp_map.count(own) == 1,"index not present in id cp map")
+
+        critpt_t * cp = msgraph->m_cps[id_cp_map[own]];
+
+        cp->disc[0].push_back(c);
+      }
+    }
     return 0;
   }
 
@@ -1369,10 +1405,10 @@ namespace grid
 
   dataset_t::dataset_t (const rect_t &r,const rect_t &e) :
       m_rect (r),m_ext_rect (e),m_ptcomp(this),
-      m_cell_pair_img(NULL),
       m_cell_flag_img(NULL),
       m_critical_cells_buf(NULL),
       m_cell_own_img(NULL),
+      m_cell_cp_idx_map_buf(NULL),
       m_vert_fns_ref(NULL)
   {
 
@@ -1383,10 +1419,10 @@ namespace grid
 
   dataset_t::dataset_t () :
       m_ptcomp(this),
-      m_cell_pair_img(NULL),
       m_cell_flag_img(NULL),
       m_critical_cells_buf(NULL),
-      m_cell_own_img(NULL)
+      m_cell_own_img(NULL),
+      m_cell_cp_idx_map_buf(NULL)
   {
     m_vert_fns_ref = NULL;
     m_cell_flags   = NULL;

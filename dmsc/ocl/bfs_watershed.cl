@@ -5,7 +5,6 @@
 
 __kernel void dobfs_markowner_extrema_init(
 __read_only  image2d_t  cell_fg_img,
-__read_only  image2d_t  cell_pr_img,
 __write_only image2d_t  cell_own_image_out,
 const short2 ext_bl,
 const short2 ext_tr
@@ -35,7 +34,7 @@ const short2 ext_tr
   
   if(is_cell_critical(flag) == 0 && is_cell_paired(flag) == 1)
   {
-    short2 p = get_cell_pair(c,ext_bl,cell_pr_img);
+    short2 p = get_cell_pair(c,flag);
 
     int d  = get_cell_dim(c);
     int pd = get_cell_dim(p);

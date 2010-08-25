@@ -4,50 +4,9 @@
 
 // #include <common_funcs.cl>
 
-void write_crit_pt_idx_to_pr_image(short2 c, unsigned int idx,__write_only image2d_t  cell_pr_img)
-{
-  int4 data;
-  
-  int2 imgcrd;
-  
-  imgcrd.x = c.y;
-  imgcrd.y = c.x;
-
-  short2 data_shrt;
-  data_shrt.x = (idx&0xffff);
-  data_shrt.y = ((idx>>16)&0xffff);
-  
-  data.x =  data_shrt.x;
-  data.y =  data_shrt.y;
-  
-  data.z = 0; data.w = 0;
-  
-  write_imagei(cell_pr_img, imgcrd, data);
-}
-
-unsigned int read_crit_pt_idx_from_pr_image(short2 c,__write_only image2d_t  cell_pr_img)
-{
-  int4 data;
-
-  int2 imgcrd;
-
-  imgcrd.x = c.y;
-  imgcrd.y = c.x;
-
-  data.x = 0;  data.y = 0;data.z = 0; data.w = 0;
-
-  data = read_imagei(cell_pr_img,cell_pr_sampler ,imgcrd);
-
-  unsigned int idx = 0;
-  idx |= data.x&0x0000ffff;
-  idx |= (data.y<<16)&0xffff0000;
-
-  return idx;  
-}
-
 __kernel void collate_cps_initcount(
-__read_only   image2d_t  cell_fg_img, 
-__global unsigned int* critpt_ct,
+__read_only   image2d_t  cell_own_img, 
+__global unsigned int*   cell_cp_idx_map,
 const short2 ext_bl,
 const short2 ext_tr
 )
@@ -63,14 +22,16 @@ const short2 ext_tr
 
   c.x = get_global_id(0);
   c.y = get_global_id(1);
-  critpt_ct[c.y*(bb_ext_sz.x+1) + c.x]= is_cell_critical(get_cell_flag(c,cell_fg_img));
-}
- 
+  
+  short2 c_own = read_from_owner_image(c,cell_own_img,ext_bl);
+  
+  cell_cp_idx_map[c.y*(bb_ext_sz.x+1) + c.x] = ((c.x == c_own.x && c.y == c_own.y)?(1):(0));
+} 
+
 __kernel void collate_cps_writeids(
-__read_only  image2d_t  cell_fg_img,
-__write_only image2d_t  cell_pr_img,
-__global unsigned int* critpt_idx,
-__global short*        critpt_cellid,
+__read_only  image2d_t  cell_own_img,
+__global unsigned int*  cell_cp_idx_map,
+__global short*         critpt_cellid,
 const short2 ext_bl,
 const short2 ext_tr
 )
@@ -86,15 +47,15 @@ const short2 ext_tr
 
   c.x = get_global_id(0);
   c.y = get_global_id(1);
+  
+  short2 c_own = read_from_owner_image(c,cell_own_img,ext_bl);
 
-  if(is_cell_critical(get_cell_flag(c,cell_fg_img)) == 1)
+  if(c.x == c_own.x && c.y == c_own.y)
   {
     // write out cellid in the cellid array
-    unsigned int idx = critpt_idx[c.y*(bb_ext_sz.x+1) + c.x];
+    unsigned int idx = cell_cp_idx_map[c.y*(bb_ext_sz.x+1) + c.x];
     critpt_cellid[2*idx + 0] = c.x+ext_bl.x;
     critpt_cellid[2*idx + 1] = c.y+ext_bl.y;
-    
-    write_crit_pt_idx_to_pr_image(c,idx,cell_pr_img);
   }
 }
 
@@ -139,14 +100,13 @@ const short2 ext_tr
         incidence_ct_out++;      
     }
   }
-
   incidence_ct[idx] = incidence_ct_out;
 }
 
 __kernel void write_critpt_incidences(
 __global short* critpt_cellid,
 __read_only image2d_t  cell_own_image,
-__read_only image2d_t  cell_pr_image,
+__global unsigned int* cell_cp_idx_map,
 __global unsigned int* incidence_buf_offset,
 __global unsigned int* incidence_buf,
 unsigned int critpt_ct,
@@ -184,7 +144,7 @@ const short2 ext_tr
 
       if(is_cell_outside_true_boundry(n_own,bb_ext_sz) == 0)
       {
-        unsigned int incident_idx = read_crit_pt_idx_from_pr_image(n_own,cell_pr_image);
+        unsigned int incident_idx = cell_cp_idx_map[n_own.y*(bb_ext_sz.x+1) + n_own.x];
 
         incidence_buf[out_offset] = incident_idx;
         
