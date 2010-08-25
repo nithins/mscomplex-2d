@@ -99,8 +99,6 @@ namespace grid
 
     dataset_t ( const rect_t &r,const rect_t &e );
 
-    dataset_t ();
-
     ~dataset_t ();
 
     void  init();

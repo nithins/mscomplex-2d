@@ -1182,39 +1182,48 @@ namespace grid
     {
       critpt_t * cp = msgraph->m_cps[i];
 
-      if(cp->index == 1)
+      if(cp->index != 1) continue;
+
+      for(uint dir = 0 ; dir < GRADDIR_COUNT;++dir)
       {
-        for(uint dir = 0 ; dir < GRADDIR_COUNT;++dir)
+        if(cp->disc[dir].size() == 1)
         {
-          if(cp->disc[dir].size() == 1)
-          {
-            cp->disc[dir].clear();
-            compute_disc_bfs(this,&cp->disc[dir],cp->cellid,(eGradientDirection)dir);
-          }
+          cp->disc[dir].clear();
+
+          compute_disc_bfs(this,&cp->disc[dir],cp->cellid,(eGradientDirection)dir);
         }
-      }
-      else
-      {
-        if(cp->is_paired == false)
-        {
-          id_cp_map[cp->cellid] = i;
-          continue;
-        }
-
-        for(uint d = 0 ; d < GRADDIR_COUNT;++d)
-          cp->disc[d].clear();
-
-        critpt_t * cp_pr = msgraph->m_cps[cp->pair_idx];
-
-        int dir = cp->index/2;
-
-        _ASSERT(cp_pr->conn[dir].size() == 1,"cp pr must be connected to only one other extrema")
-
-        critpt_t * cp_contrib = msgraph->m_cps[*cp_pr->conn[dir].begin()];
-
-        (*m_cell_own)(cp->cellid) = cp_contrib->cellid;
       }
     }
+
+    for(uint i = 0 ; i < msgraph->m_cps.size() ; ++i)
+    {
+      critpt_t * cp = msgraph->m_cps[i];
+
+      if(cp->index == 1) continue;
+
+      if(cp->is_paired == false)
+      {
+        id_cp_map[cp->cellid] = i;
+        continue;
+      }
+
+      if(m_rect.contains(cp->cellid) == false) continue;
+
+      for(uint d = 0 ; d < GRADDIR_COUNT;++d)
+        cp->disc[d].clear();
+
+      critpt_t * cp_pr = msgraph->m_cps[cp->pair_idx];
+
+      int dir = cp->index/2;
+
+      _ASSERT(cp_pr->conn[dir].size() == 1,"cp pr must be connected to only one other extrema")
+
+      critpt_t * cp_contrib = msgraph->m_cps[*cp_pr->conn[dir].begin()];
+
+      (*m_cell_own)(cp->cellid) = cp_contrib->cellid;
+
+    };
+
 
     cellid_t lc = m_rect.lower_corner(),uc = m_rect.upper_corner();
 
@@ -1224,7 +1233,9 @@ namespace grid
       {
         cellid_t c(x,y);
 
-        cellid_t own = (*m_cell_own)((*m_cell_own)(c));
+        cellid_t own = (*m_cell_own)(c);
+
+        if(m_rect.contains(own)) own = (*m_cell_own)(own);
 
         _ASSERT(id_cp_map.count(own) == 1,"index not present in id cp map")
 
@@ -1240,7 +1251,9 @@ namespace grid
       {
         cellid_t c(x,y);
 
-        cellid_t own = (*m_cell_own)((*m_cell_own)(c));
+        cellid_t own = (*m_cell_own)(c);
+
+        if(m_rect.contains(own)) own = (*m_cell_own)(own);
 
         _ASSERT(id_cp_map.count(own) == 1,"index not present in id cp map")
 
@@ -1415,18 +1428,6 @@ namespace grid
     // TODO: assert that the given rect is of even size..
     //       since each vertex is in the even positions
     //
-  }
-
-  dataset_t::dataset_t () :
-      m_ptcomp(this),
-      m_cell_flag_img(NULL),
-      m_critical_cells_buf(NULL),
-      m_cell_own_img(NULL),
-      m_cell_cp_idx_map_buf(NULL)
-  {
-    m_vert_fns_ref = NULL;
-    m_cell_flags   = NULL;
-    m_cell_own     = NULL;
   }
 
   dataset_t::~dataset_t ()

@@ -678,16 +678,16 @@ namespace grid
   {
     for(uint i = 0 ; i < m_cps.size(); ++i)
     {
+      if(m_rect.contains(m_cps[i]->cellid) == false) continue;
+
       if(!m_cps[i]->is_paired)
       {
-        if(m_rect.contains(m_cps[i]->cellid))
+        for(uint dir = 0 ; dir < 2 ;++dir)
         {
-          for(uint dir = 0 ; dir < 2 ;++dir)
-          {
-            m_cps[i]->disc[dir].push_back(m_cps[i]->cellid);
-            m_cps[i]->contrib[dir].push_back(i);
-          }
+          m_cps[i]->disc[dir].push_back(m_cps[i]->cellid);
+          m_cps[i]->contrib[dir].push_back(i);
         }
+
         continue;
       }
 
