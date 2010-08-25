@@ -1227,9 +1227,9 @@ namespace grid
 
     cellid_t lc = m_rect.lower_corner(),uc = m_rect.upper_corner();
 
-    for (cell_coord_t y = lc[1]; y <= uc[1];y += 2)
+    for (int64_t y = lc[1]; y <= uc[1];y += 2)
     {
-      for (cell_coord_t x = lc[0]; x <= uc[0];x += 2)
+      for (int64_t x = lc[0]; x <= uc[0];x += 2)
       {
         cellid_t c(x,y);
 
@@ -1245,9 +1245,9 @@ namespace grid
       }
     }
 
-    for (cell_coord_t y = lc[1]+1; y < uc[1];y += 2)
+    for (int64_t y = lc[1]+1; y < uc[1];y += 2)
     {
-      for (cell_coord_t x = lc[0]+1; x < uc[0];x += 2)
+      for (int64_t x = lc[0]+1; x < uc[0];x += 2)
       {
         cellid_t c(x,y);
 
