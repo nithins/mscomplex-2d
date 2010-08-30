@@ -3,11 +3,11 @@
 #extension GL_EXT_gpu_shader4 : enable
 #extension GL_ARB_texture_rectangle: enable
 
-const float large_width  = 0.5;
+const float large_width  = 0.3;
 const float small_width  = 0.1;
 const float length_ratio = 0.66;
 const float u_len_pt = 0;
-const float v_len_pt = 1.5;
+const float v_len_pt = 1;
 
 vec4 diffuse;
 vec4 ambient;

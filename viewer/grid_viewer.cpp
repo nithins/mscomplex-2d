@@ -53,8 +53,8 @@ glutils::color_t g_disc_colors[grid::GRADDIR_COUNT][grid::gc_grid_dim+1] =
 
 glutils::color_t g_grid_cp_conn_colors[grid::gc_grid_dim] =
 {
-  glutils::color_t(0.0,0.5,0.5 ),
-  glutils::color_t(0.5,0.0,0.5 ),
+  glutils::color_t(0.65,0.45,0.55 ),
+  glutils::color_t(0.45,0.65,0.55 ),
 };
 
 glutils::color_t g_roiaabb_color = glutils::color_t(0.85,0.75,0.65);
@@ -197,7 +197,7 @@ namespace grid
 //           std::min(-m_ren_data.m_size[1]+1,-1));
 
     glScalef(1.0/(2*m_ren_data.m_size[1]),
-             0.125,
+             1.0,
              1.0/(2*m_ren_data.m_size[1]));
 
     glTranslatef(-(2*m_ren_data.m_size[0]-1)/2,0,-(2*m_ren_data.m_size[1]-1)/2);
@@ -220,13 +220,13 @@ namespace grid
 
       glPushMatrix();
 
-//      glLineWidth(4.0);
+      glLineWidth(4.0);
 
-//      glTranslatef(0,m_ren_data.m_cp_raise/4,0);
+      glTranslatef(0,m_ren_data.m_cp_raise/4,0);
 
-//      m_surf_ren->render();
+      m_surf_ren->render();
 
-//      glLineWidth(1.0);
+      glLineWidth(1.0);
 
       glPopMatrix();
 #endif
@@ -697,6 +697,10 @@ namespace grid
           ren_cp_labels[i]->render();
       }
     }
+
+#ifdef VIEWER_RENDER_AWESOME
+    s_sphere_shader->sendUniform("g_wc_radius",(float)grd.m_cp_size*2/3);
+#endif
 
     if ( m_bShowCancCps)
     {
