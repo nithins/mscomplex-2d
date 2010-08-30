@@ -266,13 +266,10 @@ namespace grid
 
   void data_manager_t::clearDatasetsInRange(uint start ,uint end)
   {
-    if(m_compute_out_of_core == true)
+    for ( int i = end-1 ; i >= start;i-- )
     {
-      for ( int i = end-1 ; i >= start;i-- )
-      {
-        m_pieces[i]->dataset->clear();
-        m_pieces[i]->dataset->clear_fnref();
-      }
+      m_pieces[i]->dataset->clear();
+      m_pieces[i]->dataset->clear_fnref();
     }
   }
 
@@ -390,7 +387,7 @@ namespace grid
   void data_manager_t::collectManifold( datapiece_t  * dp)
   {
 
-    if(m_use_ocl == false)
+    if(m_use_ocl == false && m_num_levels != 0)
     {
       dp->dataset->work();
     }
@@ -418,7 +415,7 @@ namespace grid
     {
       datapiece_t *dp  = m_pieces[j];
 
-      if(m_use_ocl)
+      if(m_use_ocl && m_num_levels != 0)
         dp->dataset->work_ocl(false);
 
       if(m_single_threaded_mode == false)
@@ -454,7 +451,7 @@ namespace grid
 
     mergeDownPiecesInRange((i-stride)/2,i/2);
 
-    readDataAndInit(data_stream,data_buffer,i);
+    if(m_num_levels != 0) readDataAndInit(data_stream,data_buffer,i);
 
     waitForPiecesInRange((i-stride)/2,i/2);
 
@@ -464,11 +461,10 @@ namespace grid
 
     for(i -= stride;i >m_num_subdomains ; i -= stride)
     {
-
       mergeDownPiecesInRange((i-stride)/2,i/2);
-
+#ifdef NO_GUI
       clearDatasetsInRange(i,i+stride);
-
+#endif
       readDataAndInit(data_stream,data_buffer,i);
 
       waitForPiecesInRange((i-stride)/2,i/2);
@@ -478,9 +474,9 @@ namespace grid
       waitForPiecesInRange(i-stride,i);
 
     }
-
+#ifdef NO_GUI
     clearDatasetsInRange(i,i+stride);
-
+#endif
     data_stream.close();
 
     delete []data_buffer;
@@ -517,7 +513,7 @@ namespace grid
 
     waitForPiecesInRange(i,i+stride);
 
-    clearDatasetsInRange(i,i+stride);
+    if(m_num_levels != 0) clearDatasetsInRange(i,i+stride);
 
     delete []data_buffers[0];
     delete []data_buffers[1];
